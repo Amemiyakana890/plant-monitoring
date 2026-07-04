@@ -45,6 +45,7 @@ HTTP通信
 
 ## システム構成
 
+```mermaid
 graph LR
 
 A[環境センサー]
@@ -57,6 +58,7 @@ A --> B
 B -->|HTTP| C
 C --> D
 C -->|API| E
+```
 
 ---
 
