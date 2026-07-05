@@ -92,37 +92,56 @@ project
 
 ## 4. ユーザーフロー
 
+> 本バージョンは認証機能を実装しない単一ユーザー構成のため、アカウント作成/ログインのステップは設けない([要件定義書 9章](requirements.md#9-制約事項)を参照)。
+
 ```
-①アプリ起動 → ②アカウント作成/初期設定 → ③デバイス接続 → ④植物の登録 → ⑤ホーム画面(通常時)
-                                                                        │
-                                                    ⑥通知が届く ◀───────┘(状態悪化時)
+①アプリ起動 → ②デバイス接続 → ③植物の登録 → ④ホーム画面(通常時)
                                                         │
-                                                    ⑦詳細を確認
-                                                        │
-                                                    ⑨状態が更新される
+                                    ⑤通知が届く ◀───────┘(状態悪化時)
+                                        │
+                                    ⑥詳細を確認
+                                        │
+                                    ⑦状態が更新される
 ```
 
+- 初回起動時はオンボーディングを表示し、そのままデバイス接続 → 植物登録へ進む
 - 通常時:通知が来ていない = 安心という状態を基本とし、毎日アプリを開かなくてもよい設計とする
 - その他の操作(植物一覧・履歴/記録・通知設定・デバイス設定・ヘルプ)はホームからいつでもアクセス可能とする
 
 ## 5. API設計
 
-| Method | URL | 内容 |
-|---|---|---|
-| GET | /plants | 植物一覧取得 |
-| GET | /plants/:id | 植物詳細取得 |
-| GET | /history/:id | 履歴取得 |
-| POST | /sensor | ESP32からのセンサーデータ送信 |
-| GET | /notifications | 通知一覧取得 |
-| PUT | /settings/notification | 通知設定の更新 |
+認証機能を実装しないため、全APIは認証不要(単一ユーザー・単一端末前提)とする。ベースURLは `http://<server-ip>:port/api` とする。
 
-### GET /plants レスポンス例
+### 5-1. エンドポイント一覧
+
+| Method | URL | 内容 | 対応画面 |
+|---|---|---|---|
+| GET | /plants | 植物一覧取得 | ホーム |
+| POST | /plants | 植物登録 | 設定/植物登録 |
+| GET | /plants/:id | 植物詳細取得 | 植物詳細 |
+| PATCH | /plants/:id | 植物情報編集 | 植物詳細/設定 |
+| DELETE | /plants/:id | 植物削除 | 設定 |
+| GET | /devices | 検出済み/登録済みデバイス一覧取得 | 設定/植物登録 |
+| POST | /devices/pair | デバイスのペアリング登録 | 設定/植物登録 |
+| GET | /devices/:id | デバイス情報取得(バッテリー残量等) | 設定 |
+| DELETE | /devices/:id | デバイスのペアリング解除 | 設定 |
+| POST | /sensor | ESP32からのセンサーデータ送信 | (デバイス→サーバー) |
+| GET | /history/:plantId | 履歴取得(クエリで期間指定) | 履歴 |
+| GET | /notifications | 通知一覧取得 | 通知/アラート |
+| PATCH | /notifications/:id | 通知を既読にする | 通知/アラート |
+| GET | /settings/notification | 通知設定取得 | 設定 |
+| PUT | /settings/notification | 通知設定の更新 | 設定 |
+
+### 5-2. 植物 API
+
+**GET /plants レスポンス例**
 
 ```json
 [
   {
     "id": 1,
     "name": "モンステラ",
+    "species": "観葉植物",
     "status": "healthy",
     "temperature": 24.5,
     "humidity": 60,
@@ -133,13 +152,59 @@ project
 ]
 ```
 
-### POST /sensor リクエスト例
-
-ESP32はデバイスに紐付く植物IDを含めてデータを送信する。
+**POST /plants リクエスト例**
 
 ```json
 {
-  "plant_id": 1,
+  "name": "モンステラ",
+  "species": "観葉植物",
+  "device_id": 1,
+  "image": "monstera.png"
+}
+```
+
+- レスポンス:作成された植物オブジェクト(201 Created)
+
+**PATCH /plants/:id リクエスト例**
+
+```json
+{ "name": "モンステラ(リビング)" }
+```
+
+### 5-3. デバイス API
+
+**POST /devices/pair リクエスト例**
+
+アプリがBluetooth/Wi-Fi経由でデバイスを検出した後、サーバーにペアリング情報を登録する。
+
+```json
+{
+  "device_name": "Plant Monitor 01",
+  "mac_address": "AA:BB:CC:DD:EE:FF"
+}
+```
+
+**GET /devices/:id レスポンス例**
+
+```json
+{
+  "id": 1,
+  "device_name": "Plant Monitor 01",
+  "battery_level": 85,
+  "firmware_version": "1.0.2",
+  "status": "connected"
+}
+```
+
+### 5-4. センサー API
+
+**POST /sensor リクエスト例**
+
+ESP32はデバイスIDを含めてデータを送信する(植物IDではなくデバイスIDを起点にする。デバイスと植物は1:1で紐付くため、サーバー側で`devices.plant_id`を参照してどの植物のログかを判定する)。
+
+```json
+{
+  "device_id": 1,
   "temperature": 24.5,
   "humidity": 61,
   "soil": 40,
@@ -147,39 +212,181 @@ ESP32はデバイスに紐付く植物IDを含めてデータを送信する。
 }
 ```
 
-## 6. データベース設計
+- サーバー側は受信時に`sensor_logs`へ保存すると同時に、閾値と比較して`plants.status`を更新する(5-7参照)
+
+### 5-5. 履歴 API
+
+**GET /history/:plantId?range=7d**
+
+| パラメータ | 内容 |
+|---|---|
+| range | `24h` / `7d` / `30d`(デフォルト:`7d`) |
+| from / to | rangeの代わりに期間を直接指定する場合(ISO8601) |
+
+```json
+{
+  "plant_id": 1,
+  "range": "7d",
+  "logs": [
+    { "temperature": 24.5, "humidity": 60, "soil": 42, "illuminance": 320, "created_at": "2026-07-05T10:35:00" }
+  ]
+}
+```
+
+### 5-6. 通知 API
+
+**PATCH /notifications/:id リクエスト例**
+
+```json
+{ "is_read": true }
+```
+
+### 5-7. 状態(status)判定ロジック
+
+植物の状態はサーバー側で、直近のセンサー値と閾値を比較して算出し`plants.status`に保存する(アプリ側では計算しない)。
+
+| status | 条件(例) |
+|---|---|
+| healthy(元気です) | soil >= 40 |
+| thirsty(少し乾いています) | 20 <= soil < 40 |
+| dry(乾燥しています) | soil < 20 |
+
+閾値は植物種ごとに変える可能性があるため、将来的には`plants`または植物種マスタに閾値カラムを持たせる拡張を想定する(現バージョンは固定閾値)。
+
+### 5-8. エラーレスポンス形式
+
+全APIのエラーレスポンスは以下の形式に統一する。
+
+```json
+{
+  "error": {
+    "code": "PLANT_NOT_FOUND",
+    "message": "指定された植物が見つかりません"
+  }
+}
+```
+
+| HTTPステータス | 内容 |
+|---|---|
+| 400 | リクエスト不正(バリデーションエラー) |
+| 404 | 対象リソースが存在しない |
+| 409 | デバイスが既にペアリング済み等の競合 |
+| 500 | サーバー内部エラー |
+
+## 6. データベース設計(ER図)
+
+認証機能を実装しないため`users`テーブルは持たず、`devices`・`plants`を起点としたシンプルな構成とする。
+
+```mermaid
+erDiagram
+    DEVICES ||--o| PLANTS : "1台のデバイスが1つの植物に対応"
+    PLANTS ||--o{ SENSOR_LOGS : "記録する"
+    PLANTS ||--o{ NOTIFICATIONS : "発生させる"
+
+    DEVICES {
+        integer id PK
+        text device_name
+        text mac_address
+        text firmware_version
+        integer battery_level
+        text status
+        text paired_at
+    }
+
+    PLANTS {
+        integer id PK
+        integer device_id FK
+        text name
+        text species
+        text image
+        text status
+        text created_at
+    }
+
+    SENSOR_LOGS {
+        integer id PK
+        integer plant_id FK
+        real temperature
+        real humidity
+        real soil
+        real illuminance
+        text created_at
+    }
+
+    NOTIFICATIONS {
+        integer id PK
+        integer plant_id FK
+        text message
+        integer is_read
+        text created_at
+    }
+
+    NOTIFICATION_SETTINGS {
+        integer id PK
+        text frequency
+        text start_time
+        text end_time
+        integer sound_enabled
+    }
+```
+
+> `NOTIFICATION_SETTINGS`はアプリ全体で1レコードのみ保持する設定テーブルのため、他テーブルとのリレーションは持たない(単一ユーザー構成のため)。
+
+### devices
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | |
+| device_name | TEXT | 例:「Plant Monitor 01」 |
+| mac_address | TEXT | デバイス識別用 |
+| firmware_version | TEXT | |
+| battery_level | INTEGER | 0〜100 |
+| status | TEXT | connected / disconnected |
+| paired_at | TEXT | ペアリング日時 |
 
 ### plants
 
-| 列 | 型 |
-|---|---|
-| id | INTEGER |
-| name | TEXT |
-| species | TEXT |
-| image | TEXT |
-| device_id | TEXT |
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | |
+| device_id | INTEGER (FK → devices.id) | 紐付くデバイス(任意:未接続でも登録可) |
+| name | TEXT | |
+| species | TEXT | |
+| image | TEXT | |
+| status | TEXT | healthy / thirsty / dry(5-7のロジックで更新) |
+| created_at | TEXT | |
 
 ### sensor_logs
 
-| 列 | 型 |
-|---|---|
-| id | INTEGER |
-| plant_id | INTEGER |
-| temperature | REAL |
-| humidity | REAL |
-| soil | REAL |
-| illuminance | REAL |
-| created_at | TEXT |
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | |
+| plant_id | INTEGER (FK → plants.id) | |
+| temperature | REAL | |
+| humidity | REAL | |
+| soil | REAL | |
+| illuminance | REAL | |
+| created_at | TEXT | |
 
 ### notifications
 
-| 列 | 型 |
-|---|---|
-| id | INTEGER |
-| plant_id | INTEGER |
-| message | TEXT |
-| is_read | INTEGER |
-| created_at | TEXT |
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | |
+| plant_id | INTEGER (FK → plants.id) | |
+| message | TEXT | |
+| is_read | INTEGER | 0 / 1 |
+| created_at | TEXT | |
+
+### notification_settings
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | 常に1レコードのみ運用 |
+| frequency | TEXT | 例:「必要な時だけ」 |
+| start_time | TEXT | 通知許可時間帯(開始) |
+| end_time | TEXT | 通知許可時間帯(終了) |
+| sound_enabled | INTEGER | 0 / 1 |
 
 ## 7. デザインシステム
 
