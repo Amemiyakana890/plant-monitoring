@@ -1,0 +1,30 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+
+# VSCode
+.vscode/
+
+# Android
+android/.gradle/
+android/local.properties
+
+# iOS
+ios/Pods/
+
+# Node.js
+node_modules/
+.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

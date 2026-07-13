@@ -139,3 +139,25 @@ project
 - [企画書](docs/concept.md)
 - [要件定義](docs/requirements.md)
 - [設計書](docs/system-design.md)
+
+---
+
+## 環境設定(仮)
+
+本プロジェクトでは、環境変数を `.env` ファイルで管理します。
+
+初回セットアップ時は、`.env.example` をコピーして `.env` を作成してください。
+
+```bash
+cp .env.example .env
+```
+
+Windowsの場合
+
+```cmd
+copy .env.example .env
+```
+
+必要に応じて `.env` の内容を編集してください。
+
+※ `.env` は機密情報を含むため GitHub にはコミットしません。
