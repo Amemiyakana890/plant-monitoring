@@ -1,7 +1,6 @@
 import '../models/plant.dart';
 
 const List<Plant> dummyPlants = [
-
   Plant(
     id: 1,
     name: "モンステラ",
@@ -31,5 +30,4 @@ const List<Plant> dummyPlants = [
     status: "乾燥しています 🍂",
     updatedAt: "10:20",
   ),
-
 ];

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 
 class HomePlantCard extends StatelessWidget {
   final String name;
@@ -18,13 +17,9 @@ class HomePlantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppColors.surface,
       child: ListTile(
         onTap: onTap,
-        leading: Icon(
-          icon,
-          color: AppColors.primary,
-        ),
+        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
         title: Text(name),
         subtitle: Text(status),
         trailing: const Icon(Icons.chevron_right),

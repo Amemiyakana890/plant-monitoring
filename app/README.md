@@ -2,7 +2,7 @@
 
 植物の生育環境をリアルタイムで確認できるIoT植物見守りアプリです。
 
-ESP32（M5Atom Matrix）と各種センサーを用いて取得したデータを、
+ESP32-WROOM-32と各種センサーを用いて取得したデータを、
 Flutterアプリで確認できることを目的としています。
 
 ---
@@ -30,9 +30,56 @@ Flutterアプリで確認できることを目的としています。
 
 ## 🛠 開発環境
 
-- Flutter
-- Dart
+- Flutter 3.41.9
+- Dart 3.11.5
 - Material Design 3
+
+---
+
+## 🚀 セットアップ
+
+### 1. 前提ソフトウェア
+
+- Flutter 3.41.9
+- Android: Android Studio / Android SDK
+- iOS: macOS / Xcode
+
+使用するFlutter SDKは`pubspec.yaml`の`environment.flutter`に固定されています。
+
+### 2. 依存関係の取得
+
+```bash
+cd app
+flutter --version
+flutter pub get
+```
+
+`flutter --version`で`Flutter 3.41.9`と`Dart 3.11.5`が表示されることを確認してください。
+
+### 3. アプリの起動
+
+接続済み端末または起動済みエミュレーターを確認してから実行します。
+
+```bash
+flutter devices
+flutter run
+```
+
+端末を指定する場合:
+
+```bash
+flutter run -d <device-id>
+```
+
+### 4. 品質チェック
+
+```bash
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+flutter test
+```
+
+Pull Requestでは同じ解析とテストをGitHub Actionsが実行します。
 
 ---
 
@@ -75,13 +122,16 @@ lib/
 ### ✅ 完了
 
 - Flutterプロジェクト作成
+- Android / iOSプロジェクト
 - Bottom Navigation
 - Homeダッシュボード
-- Plant Detail画面
+- Plant Detail画面とホームからの遷移
 - Plants管理画面
 - History画面
 - Notification画面
 - Settings画面
+- 共通テーマ・デザイン定数
+- Widgetテスト・GitHub Actions
 - ダミーデータによる表示
 
 ### 🔄 今後実装予定

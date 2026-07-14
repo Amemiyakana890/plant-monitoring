@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
 
+import '../theme/app_dimensions.dart';
 
 class PlantCard extends StatelessWidget {
   final String name;
@@ -25,43 +25,28 @@ class PlantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppColors.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.medium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Icon(icon, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: AppSpacing.extraSmall),
+                Text(name, style: Theme.of(context).textTheme.titleLarge),
               ],
             ),
-
-            const SizedBox(height: 12),
-
-            Text("🌡 温度　$temperature"),
-            Text("💧 湿度　$humidity"),
-            Text("🪴 土壌水分　$soilMoisture"),
-
-            const SizedBox(height: 12),
-
-            Text("状態：$status"),
-
+            const SizedBox(height: AppSpacing.small),
+            Text('🌡 温度　$temperature'),
+            Text('💧 湿度　$humidity'),
+            Text('🪴 土壌水分　$soilMoisture'),
+            const SizedBox(height: AppSpacing.small),
+            Text('状態：$status'),
             const Divider(),
-
             Text(
-              "最終更新：$updatedAt",
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
+              '最終更新：$updatedAt',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
         ),
