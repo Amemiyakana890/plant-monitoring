@@ -1,113 +1,55 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+
+import '../../theme/app_dimensions.dart';
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.background,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.medium),
+      children: [
+        Text('履歴', style: Theme.of(context).textTheme.headlineLarge),
+        const SizedBox(height: AppSpacing.large),
+        const _HistoryCard(
+          title: '🌡 温度',
+          values: ['24℃', '25℃', '24℃', '23℃'],
+        ),
+        const SizedBox(height: AppSpacing.medium),
+        const _HistoryCard(
+          title: '💧 湿度',
+          values: ['60%', '58%', '59%', '61%'],
+        ),
+        const SizedBox(height: AppSpacing.medium),
+        const _HistoryCard(
+          title: '🪴 土壌水分',
+          values: ['45%', '42%', '40%', '38%'],
+        ),
+      ],
+    );
+  }
+}
 
-          const Text(
-            "履歴",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+class _HistoryCard extends StatelessWidget {
+  final String title;
+  final List<String> values;
 
-          const SizedBox(height: 20),
+  const _HistoryCard({required this.title, required this.values});
 
-          Card(
-            color: AppColors.surface,
-            child: const Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  Text(
-                    "🌡 温度",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  Divider(),
-
-                  Text("24℃"),
-                  Text("25℃"),
-                  Text("24℃"),
-                  Text("23℃"),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Card(
-            color: AppColors.surface,
-            child: const Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  Text(
-                    "💧 湿度",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  Divider(),
-
-                  Text("60%"),
-                  Text("58%"),
-                  Text("59%"),
-                  Text("61%"),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Card(
-            color: AppColors.surface,
-            child: const Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  Text(
-                    "🪴 土壌水分",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  Divider(),
-
-                  Text("45%"),
-                  Text("42%"),
-                  Text("40%"),
-                  Text("38%"),
-                ],
-              ),
-            ),
-          ),
-
-        ],
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.medium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const Divider(),
+            ...values.map(Text.new),
+          ],
+        ),
       ),
     );
   }

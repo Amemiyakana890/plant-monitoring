@@ -115,8 +115,9 @@ C -->|API| E
 
 ## 現在の進捗
 
-- ✅ Figmaデザイン作成中(画面デザイン・デザインシステム・ユーザーフロー・デバイス外観)
-- ⬜ Flutter実装
+- ✅ Figmaデザイン(画面デザイン・デザインシステム・ユーザーフロー・デバイス外観)
+- ✅ Flutter UI試作(5画面・植物詳細遷移・共通テーマ)
+- ✅ Flutter Widgetテスト・GitHub Actions
 - ⬜ Node.js実装
 - ⬜ ESP32連携
 
@@ -126,11 +127,12 @@ C -->|API| E
 
 ```
 project
+├── .github/    GitHub Actions
 ├── docs/       設計・企画資料
-├── app/        Flutterアプリ
-├── server/     Node.js APIサーバー
-└── esp32/      ESP32ファームウェア
+└── app/        Flutterアプリ(Android / iOS)
 ```
+
+`server/`と`esp32/`は今後追加予定です。
 
 ---
 
@@ -142,7 +144,28 @@ project
 
 ---
 
-## 環境設定(仮)
+## Flutterアプリの起動
+
+Flutter SDKは`app/pubspec.yaml`で**3.41.9**に固定しています。対応するDart SDKは**3.11.5**です。
+
+```bash
+cd app
+flutter pub get
+flutter run
+```
+
+静的解析とテストは次のコマンドで実行できます。
+
+```bash
+flutter analyze
+flutter test
+```
+
+Androidで実行する場合はAndroid StudioとAndroid SDK、iOSで実行する場合はmacOSとXcodeが必要です。詳細は[`app/README.md`](app/README.md)を参照してください。
+
+---
+
+## 環境変数
 
 本プロジェクトでは、環境変数を `.env` ファイルで管理します。
 

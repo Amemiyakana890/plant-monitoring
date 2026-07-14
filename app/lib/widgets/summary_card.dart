@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+
+import '../theme/app_dimensions.dart';
 
 class SummaryCard extends StatelessWidget {
   final String temperature;
@@ -16,56 +17,34 @@ class SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppColors.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.medium),
         child: Column(
           children: [
             Row(
               children: [
                 Icon(
                   Icons.analytics,
-                  color: AppColors.primary,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                const SizedBox(width: 8),
-                const Text(
-                  "今日のまとめ",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const SizedBox(width: AppSpacing.extraSmall),
+                Text('今日のまとめ', style: Theme.of(context).textTheme.titleLarge),
               ],
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: AppSpacing.medium),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("🌡 平均温度"),
-                Text(temperature),
-              ],
+              children: [const Text('🌡 平均温度'), Text(temperature)],
             ),
-
-            const SizedBox(height: 8),
-
+            const SizedBox(height: AppSpacing.extraSmall),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("💧 平均湿度"),
-                Text(humidity),
-              ],
+              children: [const Text('💧 平均湿度'), Text(humidity)],
             ),
-
-            const SizedBox(height: 8),
-
+            const SizedBox(height: AppSpacing.extraSmall),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("🪴 平均土壌水分"),
-                Text(soilMoisture),
-              ],
+              children: [const Text('🪴 平均土壌水分'), Text(soilMoisture)],
             ),
           ],
         ),
