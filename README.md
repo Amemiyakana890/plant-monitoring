@@ -52,8 +52,8 @@
 | アプリ | Flutter |
 | サーバー | Node.js |
 | データベース | SQLite |
-| デバイス | ESP32-WROOM-32, Arduino |
-| センサー | BME280(温湿度・気圧), 土壌水分センサー, 照度センサー |
+| デバイス | ATOM Matrix, Arduino |
+| センサー | M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、M5Stack用土壌水分センサユニット [U019]、M5Stack用光センサユニット [U021] |
 | 通信 | Wi-Fi 2.4GHz / HTTP(JSON) |
 
 ---
