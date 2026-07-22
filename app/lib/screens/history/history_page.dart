@@ -26,6 +26,11 @@ class HistoryPage extends StatelessWidget {
           title: '🪴 土壌水分',
           values: ['45%', '42%', '40%', '38%'],
         ),
+        const SizedBox(height: AppSpacing.medium),
+        const _HistoryCard(
+          title: '☀️ 照度',
+          values: ['320 lx', '300 lx', '280 lx', '310 lx'],
+        ),
       ],
     );
   }

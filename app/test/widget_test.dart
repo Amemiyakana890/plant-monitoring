@@ -4,18 +4,13 @@ import 'package:plant_monitoring_app/main.dart';
 import 'package:plant_monitoring_app/theme/app_colors.dart';
 
 void main() {
-  testWidgets('ホームから植物詳細を表示できる', (tester) async {
+  testWidgets('ホームで植物の状態とセンサー値を確認できる', (tester) async {
     await tester.pumpWidget(const PlantMonitoringApp());
 
-    expect(find.text('今日のまとめ'), findsOneWidget);
-    expect(find.text('マイプランツ'), findsOneWidget);
-
-    await tester.tap(find.text('モンステラ'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('現在の状態'), findsOneWidget);
-    expect(find.text('24.0 ℃'), findsOneWidget);
-    expect(find.text('元気です 🌿'), findsOneWidget);
+    expect(find.text('モンステラ'), findsOneWidget);
+    expect(find.text('少し乾いています'), findsOneWidget);
+    expect(find.text('環境データ'), findsOneWidget);
+    expect(find.text('24.5℃'), findsOneWidget);
   });
 
   testWidgets('ボトムナビゲーションで主要画面を切り替えられる', (tester) async {
@@ -23,7 +18,7 @@ void main() {
 
     await tester.tap(find.text('植物'));
     await tester.pumpAndSettle();
-    expect(find.text('植物管理'), findsOneWidget);
+    expect(find.text('植物情報'), findsWidgets);
 
     await tester.tap(find.text('履歴').last);
     await tester.pumpAndSettle();
@@ -31,11 +26,27 @@ void main() {
 
     await tester.tap(find.text('通知').last);
     await tester.pumpAndSettle();
-    expect(find.text('温度アラート'), findsOneWidget);
+    expect(find.text('室温が30℃を超えました'), findsOneWidget);
 
     await tester.tap(find.text('設定').last);
     await tester.pumpAndSettle();
-    expect(find.text('通知設定'), findsOneWidget);
+    expect(find.text('デバイス接続'), findsOneWidget);
+  });
+
+  testWidgets('植物情報画面で植物名・植物種を編集できる', (tester) async {
+    await tester.pumpWidget(const PlantMonitoringApp());
+
+    await tester.tap(find.text('植物'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('編集する'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextField, '植物名'), 'パキラ');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('パキラ'), findsOneWidget);
   });
 
   testWidgets('共通テーマがアプリに適用される', (tester) async {

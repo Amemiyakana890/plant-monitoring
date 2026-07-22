@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'history/history_page.dart';
 import 'home/home_page.dart';
 import 'notification/notification_page.dart';
-import 'plants/plants_page.dart';
+import 'plant_info/plant_info_page.dart';
 import 'settings/settings_page.dart';
 
-const List<String> _titles = ['植物見守り', '植物一覧', '履歴', '通知', '設定'];
+const List<String> _titles = ['植物見守り', '植物情報', '履歴', '通知', '設定'];
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -20,7 +20,7 @@ class _MainPageState extends State<MainPage> {
 
   final List<Widget> _pages = const [
     HomePage(),
-    PlantsPage(),
+    PlantInfoPage(),
     HistoryPage(),
     NotificationPage(),
     SettingsPage(),

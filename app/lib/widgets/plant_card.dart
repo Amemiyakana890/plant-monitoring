@@ -2,24 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_dimensions.dart';
 
+/// 温度・湿度・土壌水分・照度をまとめて表示するカード。
 class PlantCard extends StatelessWidget {
-  final String name;
   final String temperature;
   final String humidity;
   final String soilMoisture;
-  final String status;
-  final String updatedAt;
-  final IconData icon;
+  final String illuminance;
 
   const PlantCard({
     super.key,
-    required this.name,
     required this.temperature,
     required this.humidity,
     required this.soilMoisture,
-    required this.status,
-    required this.updatedAt,
-    this.icon = Icons.local_florist,
+    required this.illuminance,
   });
 
   @override
@@ -30,27 +25,41 @@ class PlantCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: AppSpacing.extraSmall),
-                Text(name, style: Theme.of(context).textTheme.titleLarge),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.small),
-            Text('🌡 温度　$temperature'),
-            Text('💧 湿度　$humidity'),
-            Text('🪴 土壌水分　$soilMoisture'),
-            const SizedBox(height: AppSpacing.small),
-            Text('状態：$status'),
+            Text('環境データ', style: Theme.of(context).textTheme.titleLarge),
             const Divider(),
-            Text(
-              '最終更新：$updatedAt',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            _ValueRow(icon: '🌡', label: '温度', value: temperature),
+            const SizedBox(height: AppSpacing.extraSmall),
+            _ValueRow(icon: '💧', label: '湿度', value: humidity),
+            const SizedBox(height: AppSpacing.extraSmall),
+            _ValueRow(icon: '🪴', label: '土壌水分', value: soilMoisture),
+            const SizedBox(height: AppSpacing.extraSmall),
+            _ValueRow(icon: '☀️', label: '照度', value: illuminance),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ValueRow extends StatelessWidget {
+  final String icon;
+  final String label;
+  final String value;
+
+  const _ValueRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text('$icon $label'),
+        Text(value, style: Theme.of(context).textTheme.bodyLarge),
+      ],
     );
   }
 }

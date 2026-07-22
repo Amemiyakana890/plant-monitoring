@@ -1,0 +1,128 @@
+import 'package:flutter/material.dart';
+
+import '../../data/dummy_plants.dart';
+import '../../models/plant.dart';
+import '../../theme/app_dimensions.dart';
+
+/// 登録した植物(1株のみ)の基本情報を確認・編集する画面。
+/// v1は1台のデバイス・1株の植物のみを管理する単独構成のため、
+/// 一覧・追加・削除の機能は持たない。
+class PlantInfoPage extends StatefulWidget {
+  const PlantInfoPage({super.key});
+
+  @override
+  State<PlantInfoPage> createState() => _PlantInfoPageState();
+}
+
+class _PlantInfoPageState extends State<PlantInfoPage> {
+  late Plant _plant = dummyPlant;
+
+  Future<void> _showEditDialog() async {
+    final nameController = TextEditingController(text: _plant.name);
+    final speciesController = TextEditingController(text: _plant.species);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('植物情報を編集'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: '植物名'),
+            ),
+            const SizedBox(height: AppSpacing.small),
+            TextField(
+              controller: speciesController,
+              decoration: const InputDecoration(labelText: '植物種'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      setState(() {
+        _plant = _plant.copyWith(
+          name: nameController.text,
+          species: speciesController.text,
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.medium),
+      children: [
+        Text('植物情報', style: Theme.of(context).textTheme.headlineLarge),
+        const SizedBox(height: AppSpacing.large),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.medium),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
+                  child: Icon(
+                    Icons.local_florist,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.medium),
+                ListTile(
+                  title: const Text('植物名'),
+                  trailing: Text(
+                    _plant.name,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                const Divider(),
+                ListTile(
+                  title: const Text('植物種'),
+                  trailing: Text(
+                    _plant.species,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.medium),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.edit),
+                    label: const Text('編集する'),
+                    onPressed: _showEditDialog,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.medium),
+        const Card(
+          child: ListTile(
+            leading: Icon(Icons.memory),
+            title: Text('紐づくデバイス'),
+            subtitle: Text('デバイスの接続状況・バッテリー残量は設定画面で確認できます'),
+          ),
+        ),
+      ],
+    );
+  }
+}
