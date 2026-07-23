@@ -16,8 +16,23 @@ app.use((req, res) => {
   sendError(res, 404, 'NOT_FOUND', '指定されたエンドポイントは存在しません');
 });
 
-// 想定外のエラー(設計書5-8)
+// エラーハンドラ(設計書5-8)
+//
+// express.json() はリクエストボディのJSONが壊れていると
+// SyntaxError(err.type === 'entity.parse.failed')をここに渡してくる。
+// これはクライアント側の不正なリクエストなので400、
+// それ以外の想定外のエラーは500として区別する。
 app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) {
+    console.warn('JSONパースエラー:', err.message);
+    return sendError(
+      res,
+      400,
+      'INVALID_JSON',
+      'リクエストボディのJSONが不正です(クォートの壊れ・文字コードなどを確認してください)',
+    );
+  }
+
   console.error(err);
   sendError(res, 500, 'INTERNAL_ERROR', 'サーバー内部エラーが発生しました');
 });
