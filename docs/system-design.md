@@ -25,23 +25,28 @@ project
 ├── app
 │   ├── screens
 │   │   ├── home
-│   │   ├── plant_info
+│   │   ├── plant_info        # v1: 登録済みの1株を確認・編集
+│   │   ├── plants            # (v2下書き・未接続)複数植物一覧
+│   │   ├── plant_detail       # (v2下書き・未接続)複数植物の詳細
 │   │   ├── history
 │   │   ├── notification
 │   │   └── settings
 │   ├── widgets
 │   ├── models
-│   ├── services
+│   ├── data                  # ダミーデータ(将来的に縮小/削除予定)
+│   ├── repositories           # データ取得の抽象化(PlantRepository)
+│   ├── state                  # 共有状態管理(PlantStore, ChangeNotifier)
 │   └── main.dart
 │
 ├── server
 │   ├── routes
 │   ├── database
 │   ├── controllers
+│   ├── utils                  # エラー整形・状態判定ロジック
 │   └── app.js
 │
 ├── esp32
-│   └── main.ino
+│   └── ir_env_temp.ino
 │
 └── docs
 ```
