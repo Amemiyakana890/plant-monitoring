@@ -1,25 +1,23 @@
 import 'package:flutter/material.dart';
 
-import '../../data/dummy_plants.dart';
 import '../../models/plant.dart';
+import '../../state/plant_store.dart';
+import '../../state/plant_store_scope.dart';
 import '../../theme/app_dimensions.dart';
 
 /// 登録した植物(1株のみ)の基本情報を確認・編集する画面。
 /// v1は1台のデバイス・1株の植物のみを管理する単独構成のため、
 /// 一覧・追加・削除の機能は持たない。
-class PlantInfoPage extends StatefulWidget {
+class PlantInfoPage extends StatelessWidget {
   const PlantInfoPage({super.key});
 
-  @override
-  State<PlantInfoPage> createState() => _PlantInfoPageState();
-}
-
-class _PlantInfoPageState extends State<PlantInfoPage> {
-  late Plant _plant = dummyPlant;
-
-  Future<void> _showEditDialog() async {
-    final nameController = TextEditingController(text: _plant.name);
-    final speciesController = TextEditingController(text: _plant.species);
+  Future<void> _showEditDialog(
+    BuildContext context,
+    PlantStore store,
+    Plant plant,
+  ) async {
+    final nameController = TextEditingController(text: plant.name);
+    final speciesController = TextEditingController(text: plant.species);
 
     final result = await showDialog<bool>(
       context: context,
@@ -53,17 +51,27 @@ class _PlantInfoPageState extends State<PlantInfoPage> {
     );
 
     if (result == true) {
-      setState(() {
-        _plant = _plant.copyWith(
-          name: nameController.text,
-          species: speciesController.text,
-        );
-      });
+      // PATCH /plants/:id 相当。保存後はストアが更新され、
+      // このページを含め参照している画面が自動的に再描画される。
+      await store.updatePlant(
+        name: nameController.text,
+        species: speciesController.text,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final store = PlantStoreScope.of(context);
+    final plant = store.plant;
+
+    if (store.isLoadingPlant && plant == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (plant == null) {
+      return Center(child: Text(store.errorMessage ?? '植物の情報がありません'));
+    }
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.medium),
       children: [
@@ -89,7 +97,7 @@ class _PlantInfoPageState extends State<PlantInfoPage> {
                 ListTile(
                   title: const Text('植物名'),
                   trailing: Text(
-                    _plant.name,
+                    plant.name,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
@@ -97,7 +105,7 @@ class _PlantInfoPageState extends State<PlantInfoPage> {
                 ListTile(
                   title: const Text('植物種'),
                   trailing: Text(
-                    _plant.species,
+                    plant.species,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
@@ -107,7 +115,7 @@ class _PlantInfoPageState extends State<PlantInfoPage> {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.edit),
                     label: const Text('編集する'),
-                    onPressed: _showEditDialog,
+                    onPressed: () => _showEditDialog(context, store, plant),
                   ),
                 ),
               ],
