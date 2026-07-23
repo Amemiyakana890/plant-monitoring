@@ -93,7 +93,7 @@ C -->|API| E
 
 ホーム画面(ペーパープロトタイプ)
 
-![Home Screen](docs/images/home.png)
+![Home Screen](docs/images/ラフhome.png)
 
 その他のデザイン資料(ユーザーフロー、デザインシステム、デバイス外観・内部構成)は `docs/images/` を参照してください。
 
