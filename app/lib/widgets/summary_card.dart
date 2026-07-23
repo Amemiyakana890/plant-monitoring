@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_dimensions.dart';
 
+/// ホーム画面の「今日のまとめ」表示(要件定義書 F-02)。
+/// v1は1株のみの構成のため、渡される値は現状その1株の実測値だが、
+/// 複数植物対応時はここに平均値を渡す想定。
 class SummaryCard extends StatelessWidget {
   final String temperature;
   final String humidity;

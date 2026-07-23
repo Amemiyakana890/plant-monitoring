@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
 
+import '../models/plant.dart';
+import '../utils/plant_status.dart';
+
+/// 植物一覧([PlantsPage]など、複数植物対応時の画面)で使う、
+/// 1件分の植物をコンパクトに表示するカード。
+///
+/// アイコン・色・メッセージは[StatusHeroCard]と同じ[plantStatusInfo]から
+/// 取得しており、画面をまたいでも状態の表現を統一している。
 class HomePlantCard extends StatelessWidget {
-  final String name;
-  final String status;
-  final IconData icon;
+  final Plant plant;
   final VoidCallback? onTap;
 
-  const HomePlantCard({
-    super.key,
-    required this.name,
-    required this.status,
-    this.icon = Icons.local_florist,
-    this.onTap,
-  });
+  const HomePlantCard({super.key, required this.plant, this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final info = plantStatusInfo[plant.status]!;
+
     return Card(
       child: ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(name),
-        subtitle: Text(status),
+        leading: Icon(info.icon, color: info.color),
+        title: Text(plant.name),
+        subtitle: Text(info.message),
         trailing: const Icon(Icons.chevron_right),
       ),
     );

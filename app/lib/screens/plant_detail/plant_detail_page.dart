@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../models/plant.dart';
 import '../../theme/app_dimensions.dart';
+import '../../utils/plant_status.dart';
+import '../history/history_page.dart';
 
+/// [PlantsPage](複数植物一覧、v2向け下書き)から遷移する、1株分の詳細画面。
+/// 状態の表現は[StatusHeroCard]と同じ[plantStatusInfo]を使い、
+/// アイコン・色・メッセージを画面間で統一している。
 class PlantDetailPage extends StatelessWidget {
   final Plant plant;
 
@@ -10,15 +15,27 @@ class PlantDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final info = plantStatusInfo[plant.status]!;
+
     return Scaffold(
       appBar: AppBar(title: Text(plant.name)),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.medium),
         children: [
-          const Center(
+          Center(
             child: CircleAvatar(
               radius: 45,
-              child: Icon(Icons.local_florist, size: 50),
+              backgroundColor: info.color.withValues(alpha: 0.12),
+              child: Icon(info.icon, size: 50, color: info.color),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.small),
+          Center(
+            child: Text(
+              info.message,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: info.color),
             ),
           ),
           const SizedBox(height: AppSpacing.large),
@@ -44,16 +61,13 @@ class PlantDetailPage extends StatelessWidget {
                     title: const Text('土壌水分'),
                     trailing: Text('${plant.soilMoisture} %'),
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.light_mode),
+                    title: const Text('照度'),
+                    trailing: Text('${plant.illuminance} lx'),
+                  ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.medium),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.favorite),
-              title: const Text('状態'),
-              subtitle: Text(plant.status),
             ),
           ),
           const SizedBox(height: AppSpacing.medium),
@@ -66,18 +80,21 @@ class PlantDetailPage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.medium),
           Card(
-            child: const ListTile(
-              leading: Icon(Icons.show_chart),
-              title: Text('履歴グラフ'),
-              subtitle: Text('今後実装予定'),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.small),
-          Card(
-            child: const ListTile(
-              leading: Icon(Icons.light_mode),
-              title: Text('照度'),
-              subtitle: Text('照度センサー接続後に表示'),
+            child: ListTile(
+              leading: const Icon(Icons.show_chart),
+              title: const Text('履歴グラフ'),
+              subtitle: const Text('環境データの推移を確認できます'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('履歴')),
+                      body: const HistoryPage(),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
