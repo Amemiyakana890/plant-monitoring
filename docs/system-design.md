@@ -46,7 +46,7 @@ project
 │   └── app.js
 │
 ├── esp32
-│   └── ir_env_temp.ino
+│   └── ir_env_temp.ino        # 試作品です(本番はmain.ino)
 │
 └── docs
 ```
