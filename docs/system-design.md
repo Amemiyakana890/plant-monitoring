@@ -25,28 +25,23 @@ project
 ├── app
 │   ├── screens
 │   │   ├── home
-│   │   ├── plant_info        # v1: 登録済みの1株を確認・編集
-│   │   ├── plants            # (v2下書き・未接続)複数植物一覧
-│   │   ├── plant_detail       # (v2下書き・未接続)複数植物の詳細
+│   │   ├── plant_info
 │   │   ├── history
 │   │   ├── notification
 │   │   └── settings
 │   ├── widgets
 │   ├── models
-│   ├── data                  # ダミーデータ(将来的に縮小/削除予定)
-│   ├── repositories           # データ取得の抽象化(PlantRepository)
-│   ├── state                  # 共有状態管理(PlantStore, ChangeNotifier)
+│   ├── services
 │   └── main.dart
 │
 ├── server
 │   ├── routes
 │   ├── database
 │   ├── controllers
-│   ├── utils                  # エラー整形・状態判定ロジック
 │   └── app.js
 │
 ├── esp32
-│   └── ir_env_temp.ino        # 試作品です(本番はmain.ino)
+│   └── main.ino
 │
 └── docs
 ```
@@ -203,6 +198,24 @@ project
 
 **POST /sensor リクエスト例**
 
+> **実装メモ(2026年7月時点)**: 当初はESP32がdevice_idを送り、サーバー側で`devices.plant_id`を引く設計だったが、Arduino/M5 ATOM Matrix側の実装都合により、現バージョンはplant_idを直接受け取る簡易版で実装している(`server/controllers/sensorController.js`参照)。デバイスペアリング機能(`devices`テーブル・`POST /devices/pair`)に着手するタイミングで、本節を下記のdevice_id起点の設計に戻す。
+
+```json
+{
+  "plant_id": 1,
+  "temperature": 24.5,
+  "humidity": 61,
+  "soil": 40,
+  "illuminance": 300
+}
+```
+
+- サーバー側は受信時に`sensor_logs`へ保存すると同時に、閾値と比較して`plants.status`を更新する(5-7参照)
+- バリデーション:`plant_id`は正の整数、`soil`は0〜100の数値(必須)、`temperature`は-20〜60、`humidity`は0〜100、`illuminance`は0以上の数値(任意項目は指定時のみ検証)。範囲外・型不正の場合は400 VALIDATION_ERRORを返す。
+
+<details>
+<summary>参考: device_id起点の元設計(デバイスペアリング実装時に復帰予定)</summary>
+
 ESP32はデバイスIDを含めてデータを送信する(植物IDではなくデバイスIDを起点にする。デバイスと植物は1:1で紐付くため、サーバー側で`devices.plant_id`を参照してどの植物のログかを判定する)。
 
 ```json
@@ -215,7 +228,7 @@ ESP32はデバイスIDを含めてデータを送信する(植物IDではなく�
 }
 ```
 
-- サーバー側は受信時に`sensor_logs`へ保存すると同時に、閾値と比較して`plants.status`を更新する(5-7参照)
+</details>
 
 ### 5-5. 履歴 API
 

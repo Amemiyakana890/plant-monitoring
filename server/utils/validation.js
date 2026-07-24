@@ -1,0 +1,46 @@
+/**
+ * POST /sensor 用のバリデーション(設計書5-4)。
+ *
+ * ESP32連携が始まると、想定外の値(文字列化された数値、NaN、負数、
+ * 欠損値など)が届く可能性があるため、保存前に型とレンジを確認する。
+ * 閾値判定(healthy/thirsty/dry)自体はutils/plantStatus.jsが担当し、
+ * ここでは「保存してよい値かどうか」のみをチェックする。
+ *
+ * 戻り値: 問題なければnull、問題があればユーザー向けエラーメッセージ(string)。
+ */
+export function validateSensorPayload({ plant_id, temperature, humidity, soil, illuminance }) {
+  if (!isPositiveInteger(plant_id)) {
+    return 'plant_id は正の整数で指定してください';
+  }
+
+  // soilは状態判定(5-7)に直結するため必須・レンジ検証ともに厳密にする。
+  if (soil === undefined || !isNumberInRange(soil, 0, 100)) {
+    return 'soil は0〜100の数値で指定してください';
+  }
+
+  // temperature/humidity/illuminanceは任意項目のため、指定された場合のみ検証する。
+  if (temperature !== undefined && !isNumberInRange(temperature, -20, 60)) {
+    return 'temperature は-20〜60の数値で指定してください';
+  }
+  if (humidity !== undefined && !isNumberInRange(humidity, 0, 100)) {
+    return 'humidity は0〜100の数値で指定してください';
+  }
+  if (illuminance !== undefined && !isNumberInRange(illuminance, 0, Infinity)) {
+    return 'illuminance は0以上の数値で指定してください';
+  }
+
+  return null;
+}
+
+function isPositiveInteger(value) {
+  // 元のコードが selectPlantStmt.get(Number(plant_id)) と数値へ変換していた
+  // ことに合わせ、数値そのものだけでなく数値文字列("1"など)も許容する。
+  // ただし空文字・小数・NaNは弾く。
+  if (typeof value !== 'number' && typeof value !== 'string') return false;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 && String(value).trim() !== '';
+}
+
+function isNumberInRange(value, min, max) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+}

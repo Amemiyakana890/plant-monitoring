@@ -8,6 +8,12 @@ const insertPlantStmt = db.prepare(
 const selectPlantStmt = db.prepare(`SELECT * FROM plants WHERE id = ?`);
 const selectAllPlantsStmt = db.prepare(`SELECT * FROM plants ORDER BY id`);
 
+const updatePlantStmt = db.prepare(
+  `UPDATE plants SET name = COALESCE(?, name), species = COALESCE(?, species) WHERE id = ?`,
+);
+
+const deletePlantStmt = db.prepare(`DELETE FROM plants WHERE id = ?`);
+
 // created_at は datetime('now') で秒単位までしか記録されないため、
 // 短時間に連続でデータが届くと created_at だけでは順序が確定しない。
 // id は AUTOINCREMENT で必ず新しい行ほど大きくなるため、id DESC で確実に最新を取る。
@@ -68,4 +74,43 @@ export function getPlant(req, res) {
   }
 
   res.json(toPlantResponse(row));
+}
+
+// PATCH /plants/:id (設計書5-2)
+// 編集可能なのは name / species のみ。未指定のフィールドは現在の値を保持する。
+export function updatePlant(req, res) {
+  const id = Number(req.params.id);
+  const existing = selectPlantStmt.get(id);
+
+  if (!existing) {
+    return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
+  }
+
+  const { name, species } = req.body ?? {};
+
+  if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+    return sendError(res, 400, 'VALIDATION_ERROR', 'name は空でない文字列で指定してください');
+  }
+  if (species !== undefined && typeof species !== 'string') {
+    return sendError(res, 400, 'VALIDATION_ERROR', 'species は文字列で指定してください');
+  }
+
+  updatePlantStmt.run(name ?? null, species ?? null, id);
+  const updated = selectPlantStmt.get(id);
+  res.json(toPlantResponse(updated));
+}
+
+// DELETE /plants/:id (設計書5-2)
+// sensor_logsの外部キーにON DELETE CASCADEを設定しているため
+// (database/db.js参照)、紐づくログも一緒に削除される。
+export function deletePlant(req, res) {
+  const id = Number(req.params.id);
+  const existing = selectPlantStmt.get(id);
+
+  if (!existing) {
+    return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
+  }
+
+  deletePlantStmt.run(id);
+  res.status(204).end();
 }
