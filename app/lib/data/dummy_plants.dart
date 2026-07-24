@@ -14,31 +14,7 @@ const Plant dummyPlant = Plant(
   updatedAt: '10:30',
 );
 
-/// v2(複数植物対応、企画書11章「今後の展望」)のプレビュー用ダミーデータ。
-/// 現行v1画面(ホーム/植物情報など)では使用せず、[PlantsPage]など
-/// 将来の複数植物一覧・詳細画面の下書き用に用意している。
-const List<Plant> dummyPlantsList = [
-  dummyPlant,
-  Plant(
-    id: 2,
-    name: 'ポトス',
-    species: '観葉植物',
-    temperature: 23.8,
-    humidity: 58,
-    soilMoisture: 55,
-    illuminance: 280,
-    status: PlantStatus.healthy,
-    updatedAt: '09:15',
-  ),
-  Plant(
-    id: 3,
-    name: '多肉植物',
-    species: 'サボテン科',
-    temperature: 25.2,
-    humidity: 45,
-    soilMoisture: 15,
-    illuminance: 410,
-    status: PlantStatus.dry,
-    updatedAt: '11:02',
-  ),
-];
+// 複数植物対応(企画書11章「今後の展望」)は、GET /plants がリストを返す
+// v2 APIに合わせて着手する。それまでは PlantStore / PlantRepository ともに
+// 単一の Plant のみを扱う設計に統一する(以前あった PlantsPage 等の
+// 複数植物プレビューは、Store を経由しない孤立コードだったため一旦削除した)。

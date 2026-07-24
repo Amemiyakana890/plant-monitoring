@@ -46,12 +46,35 @@ class _NotificationPageState extends State<NotificationPage> {
     if (store.isLoadingNotifications && notifications.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (store.notificationsErrorMessage != null && notifications.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(store.notificationsErrorMessage!),
+            const SizedBox(height: AppSpacing.small),
+            OutlinedButton(
+              onPressed: () => store.loadNotifications(),
+              child: const Text('再読み込み'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.medium),
       children: [
         Text('通知', style: Theme.of(context).textTheme.headlineLarge),
         const SizedBox(height: AppSpacing.large),
+        if (store.notificationsErrorMessage != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.small),
+            child: Text(
+              store.notificationsErrorMessage!,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
         if (notifications.isEmpty) const Text('通知はありません'),
         for (final notification in notifications) ...[
           Card(

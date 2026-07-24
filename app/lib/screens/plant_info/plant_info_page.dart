@@ -53,10 +53,16 @@ class PlantInfoPage extends StatelessWidget {
     if (result == true) {
       // PATCH /plants/:id 相当。保存後はストアが更新され、
       // このページを含め参照している画面が自動的に再描画される。
-      await store.updatePlant(
+      final success = await store.updatePlant(
         name: nameController.text,
         species: speciesController.text,
       );
+
+      if (!success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(store.errorMessage ?? '更新に失敗しました')),
+        );
+      }
     }
   }
 

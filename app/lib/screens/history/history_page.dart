@@ -38,6 +38,21 @@ class _HistoryPageState extends State<HistoryPage> {
     if (store.isLoadingHistory && logs.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (store.historyErrorMessage != null && logs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(store.historyErrorMessage!),
+            const SizedBox(height: AppSpacing.small),
+            OutlinedButton(
+              onPressed: () => store.loadHistory(),
+              child: const Text('再読み込み'),
+            ),
+          ],
+        ),
+      );
+    }
     if (logs.isEmpty) {
       return const Center(child: Text('履歴データがありません'));
     }

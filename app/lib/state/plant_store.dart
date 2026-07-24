@@ -22,7 +22,12 @@ class PlantStore extends ChangeNotifier {
   bool isLoadingPlant = false;
   bool isLoadingHistory = false;
   bool isLoadingNotifications = false;
+
+  // データの種類ごとにエラーを分ける。1つの errorMessage にまとめると、
+  // 例えば履歴取得の失敗が通知一覧のエラー表示を上書きしてしまうため。
   String? errorMessage;
+  String? historyErrorMessage;
+  String? notificationsErrorMessage;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
@@ -46,16 +51,29 @@ class PlantStore extends ChangeNotifier {
     }
   }
 
-  Future<void> updatePlant({String? name, String? species}) async {
-    plant = await _repository.updatePlant(name: name, species: species);
-    notifyListeners();
+  /// 成功時はtrue、失敗時はfalseを返す。呼び出し側(ダイアログなど)は
+  /// これを見て、保存失敗をユーザーに伝えるかどうかを判断できる。
+  Future<bool> updatePlant({String? name, String? species}) async {
+    errorMessage = null;
+    try {
+      plant = await _repository.updatePlant(name: name, species: species);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      errorMessage = '植物の情報を更新できませんでした';
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> loadHistory({String range = '7d'}) async {
     isLoadingHistory = true;
+    historyErrorMessage = null;
     notifyListeners();
     try {
       history = await _repository.fetchHistory(range: range);
+    } catch (_) {
+      historyErrorMessage = '履歴を取得できませんでした';
     } finally {
       isLoadingHistory = false;
       notifyListeners();
@@ -64,9 +82,12 @@ class PlantStore extends ChangeNotifier {
 
   Future<void> loadNotifications() async {
     isLoadingNotifications = true;
+    notificationsErrorMessage = null;
     notifyListeners();
     try {
       notifications = await _repository.fetchNotifications();
+    } catch (_) {
+      notificationsErrorMessage = '通知を取得できませんでした';
     } finally {
       isLoadingNotifications = false;
       notifyListeners();
@@ -74,10 +95,24 @@ class PlantStore extends ChangeNotifier {
   }
 
   Future<void> markNotificationRead(int id) async {
-    final updated = await _repository.markNotificationRead(id);
+    // 楽観的に既読へ更新し、失敗したら元の状態へ戻す。
+    // (通知タップの反応を待たせたくないための設計判断)
     final index = notifications.indexWhere((n) => n.id == id);
-    if (index != -1) {
+    if (index == -1) return;
+
+    final previous = notifications[index];
+    if (previous.isRead) return;
+
+    notifications[index] = previous.copyWith(isRead: true);
+    notifyListeners();
+
+    try {
+      final updated = await _repository.markNotificationRead(id);
       notifications[index] = updated;
+    } catch (_) {
+      notifications[index] = previous;
+      notificationsErrorMessage = '通知の既読処理に失敗しました';
+    } finally {
       notifyListeners();
     }
   }
