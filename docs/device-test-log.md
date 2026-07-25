@@ -44,7 +44,6 @@
 ### 今後の対応
 
 - SEN0308到着後、`esp32/soil_moisture_capacitive_test.ino`でキャリブレーション(`SOIL_RAW_DRY` / `SOIL_RAW_WET`の実測)を行う。
-- `esp32/plant_sensor_integrated.ino`は`SoilSensorType`(`EARTH_RESISTIVE` / `CAPACITIVE_SEN0308`)で両方のセンサーに対応できるようにしてあるため、切り替えは定数変更のみで対応可能。
 - Unit Earth自体の故障原因(ケーブル起因か、センサー個体起因か、拡張ベース側のコネクタ起因か)は完全には特定できていない。予備のGroveケーブルがあれば追試の余地はあるが、優先度は下げる。
 - センサー変更に伴い、`README.md`の使用技術表と`system-design.md`8章(デバイス設計・部品構成)の更新が必要(別途対応)。
 
