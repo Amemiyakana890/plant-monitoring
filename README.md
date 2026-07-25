@@ -186,3 +186,5 @@ copy .env.example .env
 必要に応じて `.env` の内容を編集してください。
 
 ※ `.env` は機密情報を含むため GitHub にはコミットしません。
+
+## GitHub Desktop テスト
