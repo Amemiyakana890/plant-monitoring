@@ -51,4 +51,3 @@
 ### 関連ファイル
 
 - `esp32/soil_moisture_test.ino` — Unit Earth用の診断・キャリブレーションスケッチ(min/max表示付き)、ENV Ⅲ + 土壌水分センサーの統合スケッチ(センサー種別切り替え対応)
-- `esp32/soil_moisture_capacitive_test.ino` — DFRobot SEN0308用のテストスケッチ
