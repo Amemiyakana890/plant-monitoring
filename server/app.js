@@ -1,15 +1,21 @@
 import express from 'express';
+import cors from 'cors';
 
 import plantsRouter from './routes/plants.js';
 import sensorRouter from './routes/sensor.js';
+import historyRouter from './routes/history.js';
+import notificationsRouter from './routes/notifications.js';
 import { sendError } from './utils/errors.js';
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // ベースURLは 設計書5章の通り http://<server-ip>:port/api
 app.use('/api/plants', plantsRouter);
 app.use('/api/sensor', sensorRouter);
+app.use('/api/history', historyRouter);
+app.use('/api/notifications', notificationsRouter);
 
 // 未定義のルート
 app.use((req, res) => {

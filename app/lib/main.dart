@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-import 'repositories/dummy_plant_repository.dart';
+import 'config/api_config.dart';
+import 'repositories/http_plant_repository.dart';
 import 'screens/main_page.dart';
 import 'state/plant_store.dart';
 import 'state/plant_store_scope.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  // 実サーバーができたらDummyPlantRepository()を
-  // HttpPlantRepository()に差し替えるだけで良い。
-  final store = PlantStore(DummyPlantRepository())..loadInitial();
+  final store = PlantStore(HttpPlantRepository(baseUrl: ApiConfig.baseUrl))
+    ..loadInitial();
 
   runApp(PlantMonitoringApp(store: store));
 }

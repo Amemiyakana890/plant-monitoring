@@ -50,11 +50,13 @@
 | 分類 | 技術 |
 |---|---|
 | アプリ | Flutter |
-| サーバー | Node.js |
+| サーバー | Node.js(Express) |
 | データベース | SQLite |
 | デバイス | ATOM Matrix, Arduino |
-| センサー | M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、M5Stack用土壌水分センサユニット [U019]、M5Stack用光センサユニット [U021] |
+| センサー | M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、DFRobot Gravity 防水静電容量式土壌水分センサー V2.0（SEN0308）※、M5Stack用光センサユニット [U021] |
 | 通信 | Wi-Fi 2.4GHz / HTTP(JSON) |
+
+※ 土壌水分センサーは当初M5Stack用土壌水分センサユニット(U019、抵抗式)を使用していましたが、接続不良の切り分けの結果SEN0308(静電容量式)へ変更しました。詳細は[デバイス検証ログ](docs/device-test-log.md)を参照してください。
 
 ---
 
@@ -107,7 +109,7 @@ C -->|API| E
 - 電源:小型モバイルバッテリー
 - 開発モジュール:ATOM Matrix
 - 拡張:ATOM PortABC拡張ベース
-- センサー:M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、M5Stack用土壌水分センサユニット [U019]、M5Stack用光センサユニット [U021]
+- センサー:M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、DFRobot Gravity 防水静電容量式土壌水分センサー V2.0（SEN0308）、M5Stack用光センサユニット [U021]
 - カラーバリエーション:ミルクホワイト / セージグリーン / グレージュ(3Dプリンターを使用して型番作成から配色まで行いたいです)
 - ステータスLEDで動作状態を色で通知(緑:正常 / 橙:注意 / 赤:エラー)
 
@@ -118,10 +120,15 @@ C -->|API| E
 ## 現在の進捗
 
 - ✅ Figmaデザイン(画面デザイン・デザインシステム・ユーザーフロー・デバイス外観)
-- ✅ Flutter UI試作(5画面・植物詳細遷移・共通テーマ)
+- ✅ Flutter UI試作(5画面・植物情報遷移・共通テーマ)
 - ✅ Flutter Widgetテスト・GitHub Actions
-- ⬜ Node.js実装
-- ⬜ ESP32連携
+- ✅ Node.js実装(plants / sensor / history / notifications API)
+- ✅ アプリ⇔サーバーの実接続(`HttpPlantRepository`、ダミーデータから切り替え済み)
+- ✅ 状態悪化時の通知自動生成・履歴表示との連携動作確認
+- ✅ ENV Ⅲ(温湿度)のWi-Fi送信コード実装
+- 🔄 ESP32実機からの送信テスト(現状はPCからの手動送信でサーバー〜アプリ間を確認済み)
+- ⬜ 土壌水分(SEN0308)・照度センサーの実接続(到着待ち)
+- ⬜ デバイスペアリング機能の実装
 
 ---
 
@@ -131,10 +138,10 @@ C -->|API| E
 project
 ├── .github/    GitHub Actions
 ├── docs/       設計・企画資料
-└── app/        Flutterアプリ(Android / iOS)
+├── app/        Flutterアプリ(Android / iOS)
+├── server/     APIサーバー(Node.js + SQLite)
+└── esp32/      センサーデバイス用スケッチ(Arduino)
 ```
-
-`server/`と`esp32/`は今後追加予定です。
 
 ---
 
@@ -143,12 +150,15 @@ project
 - [企画書](docs/concept.md)
 - [要件定義](docs/requirements.md)
 - [設計書](docs/system-design.md)
+- [デバイス検証ログ](docs/device-test-log.md)
 
 ---
 
 ## Flutterアプリの起動
 
 Flutter SDKは`app/pubspec.yaml`で**3.41.9**に固定しています。対応するDart SDKは**3.11.5**です。
+
+アプリはNode.jsサーバー(`server/`)と通信するため、先にサーバーを起動しておく必要があります。詳しい手順は[`app/README.md`](app/README.md)を参照してください。
 
 ```bash
 cd app

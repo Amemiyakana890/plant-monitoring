@@ -5,10 +5,6 @@ import { DatabaseSync } from 'node:sqlite';
 // 起動時に ExperimentalWarning が出る実験的機能であり、将来APIが変わる
 // 可能性がある(参考: 展示・卒制用途では許容範囲という判断で採用している)。
 // もし本番運用まで見据える場合は better-sqlite3 等への切り替えも検討する。
-//
-// 今回は「核となる部分」のみのため、plants と sensor_logs だけ作成する。
-// devices / notifications / notification_settings は、デバイス接続機能や
-// 通知機能に着手するタイミングで追加する(設計書6章のER図を参照)。
 const db = new DatabaseSync('plant_monitoring.db');
 
 // SQLiteは PRAGMA foreign_keys = ON を明示しない限り外部キー制約を
@@ -35,6 +31,19 @@ db.exec(`
     humidity REAL,
     soil REAL,
     illuminance REAL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// 通知/アラート画面(設計書5-6・F-05/F-06)向け。
+// devices / notification_settings はデバイス接続機能・通知設定画面に
+// 着手するタイミングで追加する(設計書6章のER図を参照)。
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
