@@ -50,3 +50,16 @@
 ### 関連ファイル
 
 - `esp32/soil_moisture_test.ino` — Unit Earth用の診断・キャリブレーションスケッチ(min/max表示付き)、ENV Ⅲ + 土壌水分センサーの統合スケッチ(センサー種別切り替え対応)
+
+## 2026-07-29: ESP32のWi-Fi送信対応(secrets.h分離)
+
+`esp32/plant_sensor_integrated.ino`にENV IIIのWi-Fi送信機能を追加。
+Wi-Fi情報・サーバーIPは`.env`と同じ考え方でGit管理対象外の
+`esp32/plant_sensor_integrated/secrets.h`に分離した
+(テンプレートは`secrets.h.example`、`.gitignore`に`esp32/**/secrets.h`を追加済み)。
+
+### 今後の対応
+
+- `secrets.h`に実際のWi-Fi SSID・パスワード・サーバーIPを書き込み、実機で送信確認を行う
+- 土壌水分は仮値(`PLACEHOLDER_SOIL_VALUE = 50.0`)を送信している状態のため、
+  SEN0308到着後は`SOIL_SENSOR_CONNECTED`を`true`にし、`readSoilMoisture()`を実測に差し替える

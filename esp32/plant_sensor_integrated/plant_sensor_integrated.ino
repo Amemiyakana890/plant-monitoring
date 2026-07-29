@@ -14,14 +14,13 @@
 #include <HTTPClient.h>
 #include "M5UnitENV.h"   // ライブラリマネージャで "M5Unit-ENV"（M5Stack製）をインストール
 
-// ---- Wi-Fi設定(環境に合わせて書き換える) ----
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+// ---- Wi-Fi・サーバー設定 ----
+// SSID・パスワード・サーバーIPはGit管理対象外の secrets.h に分離している
+// (.env と同じ考え方。詳細は secrets.h.example のコメント参照)。
+// 初回のみ、このファイルと同じフォルダで以下を実行してから値を書き換えること。
+//   cp secrets.h.example secrets.h   (Windowsは copy secrets.h.example secrets.h)
+#include "secrets.h"
 
-// ---- サーバー設定(環境に合わせて書き換える) ----
-// スマホと同じPCでサーバーを動かす場合は、そのPCのLAN IPを指定する
-// (app/lib/config/api_config.dart のbaseUrlと同じホストにすること)。
-const char* SERVER_HOST = "192.168.1.10";
 const int SERVER_PORT = 3000;
 const char* SENSOR_ENDPOINT = "/api/sensor";
 
