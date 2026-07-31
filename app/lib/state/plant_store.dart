@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/environment_log.dart';
@@ -14,6 +16,8 @@ class PlantStore extends ChangeNotifier {
   PlantStore(this._repository);
 
   final PlantRepository _repository;
+
+  Timer? _pollingTimer;
 
   Plant? plant;
   List<EnvironmentLog> history = [];
@@ -35,6 +39,54 @@ class PlantStore extends ChangeNotifier {
   /// アプリ起動時に呼び出す想定の初期読み込み。
   Future<void> loadInitial() async {
     await Future.wait([loadPlant(), loadNotifications()]);
+  }
+
+  /// バックグラウンドでの自動更新(ポーリング)を開始する。
+  ///
+  /// ESP32はサーバーへ定期的にデータを送っているが、Flutter側は
+  /// 起動時に一度取得するだけだったため、アプリを開いたままにしていても
+  /// 画面をリロードしないと最新値が反映されない問題があった。
+  /// これを解消するため、一定間隔でplant/notificationsだけを
+  /// 静かに(ローディング表示やエラーバナーを出さずに)再取得する。
+  ///
+  /// loadPlant()/loadNotifications()とは別メソッドにしているのは、
+  /// 「静かに見守る」というコンセプト上、通信が一時的に途切れただけで
+  /// 毎回ローディングスピナーやエラーメッセージが出るのは体験として
+  /// ふさわしくないため(既に表示中のデータをそのまま出し続けたい)。
+  void startPolling({Duration interval = const Duration(seconds: 30)}) {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(interval, (_) => _pollSilently());
+  }
+
+  void stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
+  Future<void> _pollSilently() async {
+    try {
+      plant = await _repository.fetchPlant();
+      // バックグラウンド更新が成功したら、以前のエラー表示も消しておく。
+      errorMessage = null;
+      notifyListeners();
+    } catch (_) {
+      // 通信が一時的に途切れただけの可能性があるため、
+      // 「静かに見守る」コンセプト通り、既に表示中のデータはそのままにし
+      // エラーバナーで上書きしない(サイレントに無視する)。
+    }
+
+    try {
+      notifications = await _repository.fetchNotifications();
+      notifyListeners();
+    } catch (_) {
+      // 同上の理由でサイレントに無視する。
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> loadPlant() async {

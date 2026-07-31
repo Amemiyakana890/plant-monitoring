@@ -13,5 +13,5 @@
 /// ESP32(センサーデバイス)も同じサーバーへ送信するため、
 /// esp32側のSERVER_HOST設定もこのPCのLAN IPに合わせること。
 class ApiConfig {
-  static const String baseUrl = 'http://192.168.1.4:3000/api';
+  static const String baseUrl = 'http://192.168.1.6:3000/api';
 }

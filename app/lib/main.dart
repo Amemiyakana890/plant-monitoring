@@ -9,7 +9,8 @@ import 'theme/app_theme.dart';
 
 void main() {
   final store = PlantStore(HttpPlantRepository(baseUrl: ApiConfig.baseUrl))
-    ..loadInitial();
+    ..loadInitial()
+    ..startPolling(); // 30秒ごとにplant/notificationsを裏で自動更新する
 
   runApp(PlantMonitoringApp(store: store));
 }

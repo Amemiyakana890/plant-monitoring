@@ -51,6 +51,8 @@
 
 - `esp32/soil_moisture_test.ino` — Unit Earth用の診断・キャリブレーションスケッチ(min/max表示付き)、ENV Ⅲ + 土壌水分センサーの統合スケッチ(センサー種別切り替え対応)
 
+---
+
 ## 2026-07-29: ESP32のWi-Fi送信対応(secrets.h分離)
 
 `esp32/plant_sensor_integrated.ino`にENV IIIのWi-Fi送信機能を追加。
@@ -63,3 +65,41 @@ Wi-Fi情報・サーバーIPは`.env`と同じ考え方でGit管理対象外の
 - `secrets.h`に実際のWi-Fi SSID・パスワード・サーバーIPを書き込み、実機で送信確認を行う
 - 土壌水分は仮値(`PLACEHOLDER_SOIL_VALUE = 50.0`)を送信している状態のため、
   SEN0308到着後は`SOIL_SENSOR_CONNECTED`を`true`にし、`readSoilMoisture()`を実測に差し替える
+
+---
+
+## 2026-07-31: ESP32実機からのWi-Fi自動送信・モバイルバッテリー給電テスト
+
+### 使用機材
+
+- ATOM Matrix + ATOMIC PortABC拡張ベース
+- M5Stack用温湿度気圧センサユニット Ver.3(ENV III、Port A・I2C接続)
+- 小型モバイルバッテリー(USB-C給電)
+
+### 経緯・結果
+
+1. `esp32/plant_sensor_integrated.ino`にWi-Fi接続 + `POST /sensor`送信処理を実装。
+   Wi-Fi情報・サーバーIPは`.env`と同じ考え方で`secrets.h`(Git管理対象外)に分離し、
+   `secrets.h.example`をテンプレートとしてコミットする形にした。
+2. サーバー側は同一LAN内の別デバイスからのアクセスになるため、Windows Defender
+   ファイアウォールで3000番ポートの受信を許可する対応が必要だった
+   (`New-NetFirewallRule`、または`node app.js`初回起動時のポップアップから許可)。
+3. 上記対応後、ATOM MatrixからNode.jsサーバーへの自動送信(30秒間隔)が成功。
+   シリアルモニタで`HTTP 201`とstatus判定結果を継続的に確認できた。
+4. Flutterアプリ側に自動ポーリング(30秒間隔でplant/notificationsを再取得)を追加し、
+   アプリを操作せずに置いたままでも、ESP32からの最新値が自動で画面に反映されることを確認。
+5. 給電を USB電源から小型モバイルバッテリーに切り替えて動作確認。問題なく動作した
+   (要件定義書6章の電源要件を実機で確認できた)。
+
+### 結論
+
+- ENV III分については「センサー → ESP32 → Node.js → SQLite → Flutter」の一気通貫が
+  実機・モバイルバッテリー駆動の状態で確認できた。
+- 土壌水分(`soil`)は`SOIL_SENSOR_CONNECTED = false`により固定値50を送信している仮の状態。
+  照度も未配線のため常に0が送信されている。どちらもセンサー到着後に対応する。
+
+### 今後の対応
+
+- 土壌水分センサー(SEN0308)・照度センサー到着後、`plant_sensor_integrated.ino`の
+  `SOIL_SENSOR_CONNECTED`を`true`にし、`readSoilMoisture()`を実測に差し替える。
+  照度センサーも配線後、同様にプレースホルダー送信を実測に置き換える。
