@@ -18,6 +18,7 @@ class PlantStore extends ChangeNotifier {
   final PlantRepository _repository;
 
   Timer? _pollingTimer;
+  bool _isPolling = false;
 
   Plant? plant;
   List<EnvironmentLog> history = [];
@@ -54,13 +55,17 @@ class PlantStore extends ChangeNotifier {
   /// 毎回ローディングスピナーやエラーメッセージが出るのは体験として
   /// ふさわしくないため(既に表示中のデータをそのまま出し続けたい)。
   void startPolling({Duration interval = const Duration(seconds: 30)}) {
-    _pollingTimer?.cancel();
+    if (_isPolling) {
+      return;
+    }
+    _isPolling = true;
     _pollingTimer = Timer.periodic(interval, (_) => _pollSilently());
   }
 
   void stopPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
+    _isPolling = false;
   }
 
   Future<void> _pollSilently() async {
@@ -85,7 +90,7 @@ class PlantStore extends ChangeNotifier {
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
+    stopPolling();
     super.dispose();
   }
 

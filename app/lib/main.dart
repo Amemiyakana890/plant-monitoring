@@ -15,15 +15,26 @@ void main() {
   runApp(PlantMonitoringApp(store: store));
 }
 
-class PlantMonitoringApp extends StatelessWidget {
+class PlantMonitoringApp extends StatefulWidget {
   final PlantStore store;
 
   const PlantMonitoringApp({super.key, required this.store});
 
   @override
+  State<PlantMonitoringApp> createState() => _PlantMonitoringAppState();
+}
+
+class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
+  @override
+  void dispose() {
+    widget.store.stopPolling();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PlantStoreScope(
-      store: store,
+      store: widget.store,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: '植物見守り',
