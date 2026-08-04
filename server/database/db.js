@@ -12,6 +12,11 @@ const db = new DatabaseSync('plant_monitoring.db');
 // 参照されているplantsの行が誤って残ったりする事故を防ぐため有効化する。
 db.exec('PRAGMA foreign_keys = ON;');
 
+// created_atはUTCで保存し、末尾にZを付与してタイムゾーンを明示する
+// (例: "2026-08-04T01:08:52Z")。以前は datetime('now') を使っており、
+// タイムゾーン情報のない "2026-08-04 01:08:52" 形式だったため、
+// Flutter側でローカル時刻として誤解釈され表示が9時間ズレる原因になっていた。
+// 表示側(Plant.updatedAtDisplay)で .toLocal() する前提のフォーマット。
 db.exec(`
   CREATE TABLE IF NOT EXISTS plants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,7 +24,7 @@ db.exec(`
     species TEXT,
     image TEXT,
     status TEXT NOT NULL DEFAULT 'healthy',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
 `);
 
@@ -31,7 +36,7 @@ db.exec(`
     humidity REAL,
     soil REAL,
     illuminance REAL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
 `);
 
@@ -44,7 +49,7 @@ db.exec(`
     plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
     message TEXT NOT NULL,
     is_read INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
 `);
 

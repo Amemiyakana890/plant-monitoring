@@ -32,7 +32,7 @@ class StatusHeroCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.small),
             Text(
-              '最終更新：${plant.updatedAt}',
+              '最終更新：${plant.updatedAtDisplay}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],

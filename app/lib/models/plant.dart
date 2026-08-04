@@ -46,6 +46,21 @@ class Plant {
     required this.updatedAt,
   });
 
+  /// 画面表示用に、サーバーのUTC文字列(例: "2026-08-04T01:08:52Z")を
+  /// ローカル時刻(JST等)に変換して整形した文字列を返す。
+  /// サーバー側の日時フォーマット変更(strftime + 'Z'付与)に対応済み。
+  /// パースできない場合は元の文字列をそのまま返す(フォールバック)。
+  String get updatedAtDisplay {
+    if (updatedAt.isEmpty) return '';
+    final parsed = DateTime.tryParse(updatedAt);
+    if (parsed == null) return updatedAt;
+
+    final local = parsed.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+  }
+
   Plant copyWith({String? name, String? species}) {
     return Plant(
       id: id,

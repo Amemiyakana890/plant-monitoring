@@ -1,12 +1,21 @@
-// 植物見守り: ENV III(温湿度・気圧) + Wi-Fi送信 統合スケッチ
+// 植物見守り: ENV III(温湿度・気圧) + 土壌水分(U019) + Wi-Fi送信 統合スケッチ
 //
-// device-test-log.md で「土壌水分センサー(SEN0308)到着後に対応する」と
-// 予告していたファイル。土壌水分センサー未着の現段階では、ENV IIIのデータ
-// だけを実際にサーバーへ送信し、Flutterアプリまで反映させることを目的とする。
+// 現在esp32/配下に残す唯一のスケッチ。土壌水分センサーの検証用に存在していた
+// soil_moisture_test.ino / soil_moisture_capacitive_test.ino は役目を終えたため、
+// リポジトリから削除してよい(検証結果はdocs/device-test-log.mdに記録済み)。
 //
-// 土壌水分センサーが届いたら SOIL_SENSOR_CONNECTED を true にし、
-// readSoilMoisture() の中身を実センサー読み取りに差し替えるだけで済むように
-// している(device-test-log.mdに記載のSoilSensorType切り替え方針に対応)。
+// 土壌水分センサーはM5シリーズでの機材統一を優先し、
+// M5Stack用 土壌水分センサユニット(Unit Earth, U019, 抵抗式)+砂ポケット運用を採用した
+// (docs/device-test-log.md 2026-08-03参照)。
+// 配線はATOM PortABC拡張ベースのPort B経由(GPIO33)からATOM Matrix本体の
+// Groveポート直挿し(GPIO32)に変更している(PortB経由でRAW値が異常に張り付く
+// 現象が発生したため。詳細は追記予定のdevice-test-logエントリを参照)。
+//
+// 照度センサー(U021)は現バージョンでは未接続。
+// ENV III(I2C、拡張ベースPort A)との競合懸念、およびATOM MatrixのI2C使用により
+// ピンに空きがない可能性が高いため、当面はENV III(拡張ベースPort A)+
+// U019(本体Grove直挿し)の2センサー構成で進める。
+// (照度を追加する場合は配線方式の再検討が必要。詳細はdevice-test-log.mdに追記予定)
 
 #include <M5Atom.h>
 #include <Wire.h>
@@ -28,14 +37,34 @@ const char* SENSOR_ENDPOINT = "/api/sensor";
 // 植物のidを固定で指定する(通常は1)。
 const int PLANT_ID = 1;
 
-// ---- 土壌水分センサー(未接続時の仮値) ----
-// POST /sensor の soil は必須項目(設計書5-4・server/utils/validation.js)。
-// センサー未接続のままだとバリデーションエラーになるため、
-// SEN0308到着までは「healthy判定になる」仮の固定値を送っておく。
-// センサーが届いたら SOIL_SENSOR_CONNECTED を true にし、
-// readSoilMoisture() を実際のアナログ読み取りに差し替えること。
-const bool SOIL_SENSOR_CONNECTED = false;
-const float PLACEHOLDER_SOIL_VALUE = 50.0;
+// ---- 土壌水分センサー(M5Stack Unit Earth, U019, 抵抗式) ----
+// 当初はATOM PortABC拡張ベースのPort B経由(GPIO33)で接続していたが、
+// RAW値が4090前後(ADC最大値4095付近)に張り付く現象が発生し、
+// 7/25の検証ログと同様の「過電圧/接触不良」の疑いがあったため、
+// ATOM Matrix本体のGroveポートへの直挿し(GPIO32、ADC1系)に変更した。
+// GPIO32はENV IIIが使うI2Cピン(GPIO25/21)と競合せず、
+// Wi-Fi動作中でも安定して読み取れる。
+// 砂ポケット運用のため、乾燥時/湿潤時のRAW値は必ず実機・実際の砂で
+// 実測してから SOIL_RAW_DRY / SOIL_RAW_WET を書き換えること。
+// 下記は2026-08-04に本体Grove直挿し(GPIO32)構成で実測した値
+// (乾いた土:3791/3806/3739/3747/3641の平均、加水後の土:2096/2022/1922/2006/2037/2039の平均)。
+// このセンサー・配線の組み合わせでは「乾燥時=高いRAW値、湿潤時=低いRAW値」という、
+// 一般的な想定(乾燥時=低い/湿潤時=高い)とは逆の向きになることが分かった。
+// 式は (raw - DRY) / (WET - DRY) * 100 なので、大小関係が逆でも
+// DRY/WETに実測値を正しく入れれば0〜100%に正常変換される。
+// なお今回の実測は「土」で行っており、実際の運用(砂ポケット)とは
+// 計測対象が異なる点に注意。砂での運用に切り替えた際は再実測が望ましい。
+#define SOIL_PIN 32
+int SOIL_RAW_DRY = 3745;
+int SOIL_RAW_WET = 2020;
+
+// ---- キャリブレーションモード ----
+// true にして書き込むと、Wi-Fi送信は行わずシリアルモニタにRAW値のみを
+// 1秒おきに表示する(旧soil_moisture_test.inoの安定性チェックモード相当)。
+// 乾いた砂・湿った砂それぞれで数値が安定するのを確認し、
+// 上記 SOIL_RAW_DRY / SOIL_RAW_WET を実測値に更新したら、
+// 必ず false に戻してから通常運用すること。
+const bool CALIBRATION_MODE = false;
 
 // ---- ENV III(I2C, Port A) ----
 #define ENV_SDA 25
@@ -58,13 +87,19 @@ void showStatusColor(uint8_t r, uint8_t g, uint8_t b) {
   }
 }
 
+// U019のRAW値を0〜100%のsoil値に変換する。
+// SOIL_RAW_DRY/WETが未実測(暫定値)のままだと精度は保証されないため、
+// 必ずキャリブレーション後の値を使うこと。
 float readSoilMoisture() {
-  if (!SOIL_SENSOR_CONNECTED) {
-    return PLACEHOLDER_SOIL_VALUE;
+  int raw = analogRead(SOIL_PIN);
+
+  if (SOIL_RAW_DRY == SOIL_RAW_WET) {
+    return 0.0; // ゼロ除算防止(未設定時のフェイルセーフ)
   }
-  // SEN0308到着後、ここを実際のアナログ読み取り+キャリブレーション式に
-  // 差し替える(soil_moisture_test.inoでの検証結果を反映する想定)。
-  return PLACEHOLDER_SOIL_VALUE;
+
+  float percent = (float)(raw - SOIL_RAW_DRY) /
+                  (float)(SOIL_RAW_WET - SOIL_RAW_DRY) * 100.0;
+  return constrain(percent, 0.0, 100.0);
 }
 
 void connectWiFi() {
@@ -136,12 +171,28 @@ void setup() {
     Serial.println("SHT30（温湿度センサー）が見つかりません。配線を確認してください。");
   }
 
+  pinMode(SOIL_PIN, INPUT);
+
+  if (CALIBRATION_MODE) {
+    Serial.println("=== 土壌水分センサー(U019) キャリブレーションモード ===");
+    Serial.println("乾いた砂・湿った砂でそれぞれRAW値が安定するか確認してください。");
+    return; // Wi-Fi接続は行わない
+  }
+
   connectWiFi();
   Serial.println("=== 植物見守り: センサー送信開始 ===");
 }
 
 void loop() {
   M5.update();
+
+  if (CALIBRATION_MODE) {
+    int raw = analogRead(SOIL_PIN);
+    Serial.print("[CALIBRATION] Soil RAW = ");
+    Serial.println(raw);
+    delay(1000);
+    return;
+  }
 
   unsigned long now = millis();
   if (now - lastSendMillis < SEND_INTERVAL && lastSendMillis != 0) {
@@ -165,8 +216,9 @@ void loop() {
   Serial.print(temperature);
   Serial.print("C Humidity=");
   Serial.print(humidity);
-  Serial.print("% Soil(placeholder)=");
-  Serial.println(soil);
+  Serial.print("% Soil=");
+  Serial.print(soil);
+  Serial.println("%");
 
   sendSensorData(temperature, humidity, soil);
 }
