@@ -40,9 +40,7 @@ class HttpPlantRepository implements PlantRepository {
       // v1では植物登録画面からの新規作成フローがまだHTTPに繋がっていないため、
       // 初回は `curl -X POST $baseUrl/plants -d '{"name":"モンステラ"}'` などで
       // 1件だけ手動登録しておく必要がある。
-      throw StateError(
-        'まだ植物が登録されていません。先に POST /plants で植物を1件登録してください。',
-      );
+      throw StateError('まだ植物が登録されていません。先に POST /plants で植物を1件登録してください。');
     }
     return list.cast<Map<String, dynamic>>();
   }

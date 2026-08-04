@@ -64,9 +64,9 @@ class HistoryLineChart extends StatelessWidget {
                     drawVerticalLine: false,
                     horizontalInterval: (maxY - minY + padding * 2) / 3,
                     getDrawingHorizontalLine: (value) => FlLine(
-                      color: Theme.of(context).dividerColor.withValues(
-                        alpha: 0.4,
-                      ),
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.4),
                       strokeWidth: 1,
                     ),
                   ),
@@ -106,10 +106,7 @@ class HistoryLineChart extends StatelessWidget {
                       getTooltipItems: (spots) => spots.map((spot) {
                         return LineTooltipItem(
                           '${_formatValue(spot.y)}$unit',
-                          TextStyle(
-                            color: color,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          TextStyle(color: color, fontWeight: FontWeight.bold),
                         );
                       }).toList(),
                     ),

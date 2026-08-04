@@ -29,10 +29,7 @@ void main() {
     // (環境データ)に同じ値が重複して表示される。'24.5℃'だけで探すと
     // 画面全体では2件ヒットするため、PlantCard配下に絞って確認する。
     expect(
-      find.descendant(
-        of: find.byType(PlantCard),
-        matching: find.text('24.5℃'),
-      ),
+      find.descendant(of: find.byType(PlantCard), matching: find.text('24.5℃')),
       findsOneWidget,
     );
   });
