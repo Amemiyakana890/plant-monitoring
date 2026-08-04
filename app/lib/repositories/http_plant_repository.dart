@@ -60,10 +60,7 @@ class HttpPlantRepository implements PlantRepository {
     final res = await http.patch(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        if (name != null) 'name': name,
-        if (species != null) 'species': species,
-      }),
+      body: jsonEncode({'name': name, 'species': species}),
     );
     _ensureOk(res, 'PATCH /plants/$id');
     return Plant.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
