@@ -62,10 +62,37 @@ class _NotificationPageState extends State<NotificationPage> {
       );
     }
 
+    final unreadCount = notifications.where((n) => !n.isRead).length;
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.medium),
       children: [
-        Text('通知', style: Theme.of(context).textTheme.headlineLarge),
+        Row(
+          children: [
+            Text('通知', style: Theme.of(context).textTheme.headlineLarge),
+            if (unreadCount > 0) ...[
+              const SizedBox(width: AppSpacing.small),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$unreadCount件未読',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         const SizedBox(height: AppSpacing.large),
         if (store.notificationsErrorMessage != null)
           Padding(

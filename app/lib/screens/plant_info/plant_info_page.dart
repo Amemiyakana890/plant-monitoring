@@ -3,13 +3,27 @@ import 'package:flutter/material.dart';
 import '../../models/plant.dart';
 import '../../state/plant_store.dart';
 import '../../state/plant_store_scope.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/app_dimensions.dart';
+import '../../widgets/care_tips_card.dart';
 
 /// 登録した植物(1株のみ)の基本情報を確認・編集する画面。
 /// v1は1台のデバイス・1株の植物のみを管理する単独構成のため、
 /// 一覧・追加・削除の機能は持たない。
 class PlantInfoPage extends StatelessWidget {
   const PlantInfoPage({super.key});
+
+  /// 植物育成アドバイス(ケアポイント)の文言。
+  ///
+  /// TODO: 現状はモンステラ固定の文言を表示しているだけ。
+  /// 将来的には植物種マスタ等から植物種ごとの文言を引く形に差し替える
+  /// (企画書11章「今後の展望」参照)。
+  static const List<String> _monsteraCareTips = [
+    '直射日光を避け、明るい日陰を好みます',
+    '土の表面が乾いたら水やりをしましょう',
+    '適温は18〜30℃、霜に弱いです',
+    '月に1度、液体肥料を与えると元気になります',
+  ];
 
   Future<void> _showEditDialog(
     BuildContext context,
@@ -129,13 +143,37 @@ class PlantInfoPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.medium),
-        const Card(
+        // 現状は未接続でもほとんど意味を持たない情報のため、
+        // 主役の植物カードより控えめなトーン(輪郭のみ・淡色アイコン)にしている。
+        // デバイスペアリング機能の実装(要件定義書 F-07)に合わせて、
+        // 接続状況・バッテリー残量などを表示する作りに更新する想定。
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+            side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+          ),
           child: ListTile(
-            leading: Icon(Icons.memory),
-            title: Text('紐づくデバイス'),
-            subtitle: Text('デバイスの接続状況・バッテリー残量は設定画面で確認できます'),
+            leading: Icon(
+              Icons.memory,
+              color: AppColors.textPrimary.withValues(alpha: 0.4),
+            ),
+            title: Text(
+              '紐づくデバイス',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppColors.textPrimary.withValues(alpha: 0.6),
+              ),
+            ),
+            subtitle: Text(
+              'デバイスの接続状況・バッテリー残量は設定画面で確認できます',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textPrimary.withValues(alpha: 0.45),
+              ),
+            ),
           ),
         ),
+        const SizedBox(height: AppSpacing.medium),
+        CareTipsCard(title: '${plant.name}のケアポイント', tips: _monsteraCareTips),
       ],
     );
   }

@@ -33,6 +33,8 @@ class HistoryLineChart extends StatelessWidget {
     final maxY = values.reduce((a, b) => a > b ? a : b);
     // 上下に少し余白を持たせて、線がカードの端に張り付かないようにする
     final padding = ((maxY - minY).abs() * 0.2).clamp(1, double.infinity);
+    // グリッド線とY軸ラベルの間隔を揃えるため、値は一度だけ計算して共有する
+    final gridInterval = (maxY - minY + padding * 2) / 3;
 
     return Card(
       child: Padding(
@@ -62,7 +64,7 @@ class HistoryLineChart extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    horizontalInterval: (maxY - minY + padding * 2) / 3,
+                    horizontalInterval: gridInterval,
                     getDrawingHorizontalLine: (value) => FlLine(
                       color: Theme.of(
                         context,
@@ -78,13 +80,31 @@ class HistoryLineChart extends StatelessWidget {
                     rightTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
                     ),
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 34,
+                        interval: gridInterval,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            _formatValue(value),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.color
+                                      ?.withValues(alpha: 0.6),
+                                ),
+                          );
+                        },
+                      ),
                     ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 24,
+                        interval: 1,
                         getTitlesWidget: (value, meta) {
                           final index = value.toInt();
                           if (index < 0 || index >= labels.length) {
@@ -102,11 +122,46 @@ class HistoryLineChart extends StatelessWidget {
                     ),
                   ),
                   lineTouchData: LineTouchData(
+                    getTouchedSpotIndicator: (barData, spotIndexes) {
+                      return spotIndexes.map((index) {
+                        return TouchedSpotIndicatorData(
+                          FlLine(
+                            color: color.withValues(alpha: 0.4),
+                            strokeWidth: 1,
+                            dashArray: [4, 4],
+                          ),
+                          FlDotData(
+                            getDotPainter: (spot, percent, bar, index) =>
+                                FlDotCirclePainter(
+                                  radius: 5,
+                                  color: color,
+                                  strokeWidth: 2,
+                                  strokeColor: Colors.white,
+                                ),
+                          ),
+                        );
+                      }).toList();
+                    },
                     touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (touchedSpot) => Colors.white,
+                      tooltipBorder: BorderSide(
+                        color: color.withValues(alpha: 0.5),
+                      ),
+                      tooltipBorderRadius: BorderRadius.circular(8),
+                      tooltipPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
                       getTooltipItems: (spots) => spots.map((spot) {
                         return LineTooltipItem(
                           '${_formatValue(spot.y)}$unit',
-                          TextStyle(color: color, fontWeight: FontWeight.bold),
+                          TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         );
                       }).toList(),
                     ),

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../data/dummy_plants.dart';
 import '../models/environment_log.dart';
 import '../models/plant.dart';
@@ -40,20 +42,6 @@ class DummyPlantRepository implements PlantRepository {
     ),
   ];
 
-  static const _labels = [
-    '7/16',
-    '7/17',
-    '7/18',
-    '7/19',
-    '7/20',
-    '7/21',
-    '7/22',
-  ];
-  static const _temperature = [23.0, 24.0, 25.0, 24.5, 26.0, 25.0, 24.5];
-  static const _humidity = [58.0, 61.0, 59.0, 60.0, 57.0, 62.0, 60.0];
-  static const _soil = [55.0, 50.0, 46.0, 44.0, 40.0, 40.0, 42.0];
-  static const _illuminance = [300.0, 340.0, 280.0, 320.0, 350.0, 310.0, 320.0];
-
   /// 実際のHTTP通信を想定してあえて遅延させている。
   /// (画面側のローディング表示が正しく機能するかを、実サーバーが
   /// できる前から確認できるようにするため)
@@ -76,17 +64,76 @@ class DummyPlantRepository implements PlantRepository {
   @override
   Future<List<EnvironmentLog>> fetchHistory({String range = '7d'}) async {
     await _simulateNetwork();
+    switch (range) {
+      case '24h':
+        // 45分間隔(3時間ごとに区切りが来るように)。
+        return _generateLogs(
+          span: const Duration(hours: 24),
+          interval: const Duration(minutes: 45),
+        );
+      case '30d':
+        // 12時間間隔で30日分。
+        return _generateLogs(
+          span: const Duration(days: 30),
+          interval: const Duration(hours: 12),
+        );
+      case '7d':
+      default:
+        // 6時間間隔で7日分(1日4点、日付が変わる0時ちょうどに区切りが来る)。
+        return _generateLogs(
+          span: const Duration(days: 7),
+          interval: const Duration(hours: 6),
+        );
+    }
+  }
+
+  /// ダミーの環境データ推移を作る。
+  ///
+  /// 気温・湿度は1日の中で緩やかに上下する波形をベースに、土壌水分は
+  /// 時間経過とともにゆっくり乾いていく値に、少しだけ疑似的な揺らぎ
+  /// (ノイズ)を加えて、実データっぽい推移に見せている。
+  List<EnvironmentLog> _generateLogs({
+    required Duration span,
+    required Duration interval,
+  }) {
+    // range境界(24hなら3時間ごと、7d/30dなら0時ちょうど)がきれいに
+    // 表示できるよう、開始時刻をinterval単位で切り捨ててそろえる。
+    final now = DateTime.now();
+    final intervalMs = interval.inMilliseconds;
+    final rawStartMs = now.subtract(span).millisecondsSinceEpoch;
+    final alignedStartMs = rawStartMs - (rawStartMs % intervalMs);
+    final start = DateTime.fromMillisecondsSinceEpoch(alignedStartMs);
+
+    final pointCount = span.inMilliseconds ~/ intervalMs;
+
     return [
-      for (var i = 0; i < _labels.length; i++)
-        EnvironmentLog(
-          label: _labels[i],
-          temperature: _temperature[i],
-          humidity: _humidity[i],
-          soilMoisture: _soil[i],
-          illuminance: _illuminance[i],
-        ),
+      for (var i = 0; i <= pointCount; i++) _logAt(start.add(interval * i), i),
     ];
   }
+
+  EnvironmentLog _logAt(DateTime t, int index) {
+    final hourOfDay = t.hour + t.minute / 60;
+    final noise = sin(index * 1.7) * 0.6; // 疑似的な揺らぎ
+
+    final temperature = 26 + 3 * sin((hourOfDay - 9) / 24 * 2 * pi) + noise;
+    final humidity = 60 + 8 * sin((hourOfDay - 15) / 24 * 2 * pi) + noise * 2;
+    final soilMoisture = (55 - index * 0.4 + noise * 3).clamp(10.0, 90.0);
+    final isDaylight = hourOfDay >= 6 && hourOfDay <= 18;
+    final illuminance = isDaylight
+        ? (250 + 200 * sin((hourOfDay - 6) / 12 * pi)).clamp(0.0, 500.0)
+        : 0.0;
+
+    return EnvironmentLog(
+      timestamp: t,
+      label: '${t.month}/${t.day} ${_twoDigits(t.hour)}:${_twoDigits(t.minute)}',
+      temperature: double.parse(temperature.toStringAsFixed(1)),
+      humidity: double.parse(humidity.toStringAsFixed(1)),
+      soilMoisture: double.parse(soilMoisture.toStringAsFixed(1)),
+      illuminance: double.parse(illuminance.toStringAsFixed(0)),
+    );
+  }
+
+  String _twoDigits(int n) => n.toString().padLeft(2, '0');
 
   @override
   Future<List<PlantNotification>> fetchNotifications() async {
