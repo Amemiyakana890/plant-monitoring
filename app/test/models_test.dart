@@ -84,7 +84,7 @@ void main() {
       final expected = DateTime.parse('2026-08-04T01:08:52Z').toLocal();
       String two(int n) => n.toString().padLeft(2, '0');
       final expectedText =
-          '${expected.year}-${two(expected.month)}-${two(expected.day)} '
+          '${expected.year}年${expected.month}月${expected.day}日 '
           '${two(expected.hour)}:${two(expected.minute)}:${two(expected.second)}';
 
       expect(plant.updatedAtDisplay, expectedText);

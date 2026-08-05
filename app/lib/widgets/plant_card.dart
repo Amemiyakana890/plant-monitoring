@@ -1,64 +1,55 @@
 import 'package:flutter/material.dart';
 
+import '../models/plant.dart';
 import '../theme/app_dimensions.dart';
+import '../utils/environment_status.dart';
+import 'environment_metric_card.dart';
 
-/// 温度・湿度・土壌水分・照度をまとめて表示するカード。
+/// ホーム画面中央の「各項目の状態」セクション。
+/// 温度・湿度・土壌水分・照度を2×2のカードで表示する(要件定義書F-02)。
 class PlantCard extends StatelessWidget {
-  final String temperature;
-  final String humidity;
-  final String soilMoisture;
-  final String illuminance;
+  final Plant plant;
 
-  const PlantCard({
-    super.key,
-    required this.temperature,
-    required this.humidity,
-    required this.soilMoisture,
-    required this.illuminance,
-  });
+  const PlantCard({super.key, required this.plant});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.medium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('環境データ', style: Theme.of(context).textTheme.titleLarge),
-            const Divider(),
-            _ValueRow(icon: '🌡', label: '温度', value: temperature),
-            const SizedBox(height: AppSpacing.extraSmall),
-            _ValueRow(icon: '💧', label: '湿度', value: humidity),
-            const SizedBox(height: AppSpacing.extraSmall),
-            _ValueRow(icon: '🪴', label: '土壌水分', value: soilMoisture),
-            const SizedBox(height: AppSpacing.extraSmall),
-            _ValueRow(icon: '☀️', label: '照度', value: illuminance),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ValueRow extends StatelessWidget {
-  final String icon;
-  final String label;
-  final String value;
-
-  const _ValueRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.medium,
+      crossAxisSpacing: AppSpacing.medium,
+      childAspectRatio: 0.95,
       children: [
-        Text('$icon $label'),
-        Text(value, style: Theme.of(context).textTheme.bodyLarge),
+        EnvironmentMetricCard(
+          label: '温度',
+          valueText: '${plant.temperature}℃',
+          icon: Icons.thermostat,
+          iconColor: Colors.redAccent,
+          status: temperatureStatus(plant.temperature),
+        ),
+        EnvironmentMetricCard(
+          label: '湿度',
+          valueText: '${plant.humidity}%',
+          icon: Icons.water_drop,
+          iconColor: Colors.blueAccent,
+          status: humidityStatus(plant.humidity),
+        ),
+        EnvironmentMetricCard(
+          label: '土壌水分',
+          valueText: '${plant.soilMoisture}%',
+          icon: Icons.eco,
+          iconColor: Colors.green,
+          status: soilMoistureStatus(plant.soilMoisture),
+        ),
+        EnvironmentMetricCard(
+          label: '光量',
+          valueText: '${plant.illuminance.toStringAsFixed(0)} lux',
+          icon: Icons.wb_sunny,
+          iconColor: Colors.orangeAccent,
+          status: illuminanceStatus(plant.illuminance),
+        ),
       ],
     );
   }

@@ -24,21 +24,19 @@ class HomePage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.medium),
       children: [
+        // ①一番上:植物名・全体の様子
         StatusHeroCard(plant: plant),
         const SizedBox(height: AppSpacing.medium),
+        // ②真ん中:各項目(温度・湿度・土壌水分・照度)の状態
+        PlantCard(plant: plant),
+        const SizedBox(height: AppSpacing.medium),
+        // ③一番下:今日のまとめ
         // v1は1株のみの構成のため「今日のまとめ」＝その1株の実測値。
         // 複数植物対応時はストア側で全植物の平均値を計算する想定(要件定義書F-02)。
         SummaryCard(
           temperature: '${plant.temperature}℃',
           humidity: '${plant.humidity}%',
           soilMoisture: '${plant.soilMoisture}%',
-        ),
-        const SizedBox(height: AppSpacing.medium),
-        PlantCard(
-          temperature: '${plant.temperature}℃',
-          humidity: '${plant.humidity}%',
-          soilMoisture: '${plant.soilMoisture}%',
-          illuminance: '${plant.illuminance} lx',
         ),
       ],
     );

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:plant_monitoring_app/main.dart';
 import 'package:plant_monitoring_app/repositories/dummy_plant_repository.dart';
 import 'package:plant_monitoring_app/state/plant_store.dart';
+import 'package:plant_monitoring_app/state/theme_controller.dart';
 import 'package:plant_monitoring_app/theme/app_colors.dart';
 import 'package:plant_monitoring_app/widgets/plant_card.dart';
 
@@ -23,9 +24,12 @@ Future<void> _settle(WidgetTester tester) => tester.pumpAndSettle(
 Future<void> _pumpApp(WidgetTester tester) async {
   final store = PlantStore(DummyPlantRepository());
   addTearDown(store.dispose);
+  final themeController = ThemeController();
 
   await store.loadInitial();
-  await tester.pumpWidget(PlantMonitoringApp(store: store));
+  await tester.pumpWidget(
+    PlantMonitoringApp(store: store, themeController: themeController),
+  );
   await _settle(tester);
 }
 
@@ -37,7 +41,7 @@ void main() {
 
       expect(find.text('モンステラ'), findsOneWidget);
       expect(find.text('少し乾いています'), findsOneWidget);
-      expect(find.text('環境データ'), findsOneWidget);
+      expect(find.text('温度'), findsOneWidget);
 
       // v1は1株のみの構成のため、SummaryCard(今日のまとめ)とPlantCard
       // (環境データ)に同じ値が重複して表示される。'24.5℃'だけで探すと
@@ -71,7 +75,7 @@ void main() {
 
       await tester.tap(find.text('設定').last);
       await _settle(tester);
-      expect(find.text('デバイス接続'), findsOneWidget);
+      expect(find.text('Plant Monitor 01'), findsOneWidget);
     },
     timeout: const Timeout(Duration(seconds: 30)),
   );

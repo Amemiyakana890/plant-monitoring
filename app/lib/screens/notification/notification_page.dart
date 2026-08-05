@@ -38,6 +38,18 @@ class _NotificationPageState extends State<NotificationPage> {
     return Icons.notifications;
   }
 
+  /// created_at(ISO8601、例: '2026-08-04T23:22:00Z')を
+  /// 通知一覧表示用の「8月4日 23:22」形式に整形する。
+  /// パースできない場合は元の文字列をそのまま返す(表示が崩れないようにするため)。
+  String _formatDateTime(String isoString) {
+    final parsed = DateTime.tryParse(isoString);
+    if (parsed == null) return isoString;
+    final local = parsed.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${local.month}月${local.day}日 $hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = PlantStoreScope.of(context);
@@ -111,7 +123,7 @@ class _NotificationPageState extends State<NotificationPage> {
                 color: notification.isRead ? Colors.grey : AppColors.warning,
               ),
               title: Text(notification.message),
-              subtitle: Text(notification.createdAt),
+              subtitle: Text(_formatDateTime(notification.createdAt)),
               trailing: notification.isRead
                   ? null
                   : const Icon(Icons.circle, size: 10, color: AppColors.error),

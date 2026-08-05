@@ -52,13 +52,13 @@ class PlantInfoPage extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('キャンセル'),
-          ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('保存'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('キャンセル'),
           ),
         ],
       ),

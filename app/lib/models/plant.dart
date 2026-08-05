@@ -48,7 +48,8 @@ class Plant {
 
   /// 画面表示用に、サーバーのUTC文字列(例: "2026-08-04T01:08:52Z")を
   /// ローカル時刻(JST等)に変換して整形した文字列を返す。
-  /// サーバー側の日時フォーマット変更(strftime + 'Z'付与)に対応済み。
+  /// 通知一覧(notification_page.dart の_formatDateTime)と表記を揃え、
+  /// 「2026年8月6日 07:57:32」形式にしている。
   /// パースできない場合は元の文字列をそのまま返す(フォールバック)。
   String get updatedAtDisplay {
     if (updatedAt.isEmpty) return '';
@@ -57,7 +58,7 @@ class Plant {
 
     final local = parsed.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${local.year}-${two(local.month)}-${two(local.day)} '
+    return '${local.year}年${local.month}月${local.day}日 '
         '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
 
