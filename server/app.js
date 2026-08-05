@@ -1,3 +1,11 @@
+// 必ず一番最初にimportすること。
+// ESモジュールは「自分がimportする依存モジュール」を自身のトップレベル
+// コードより先に評価するため、他のimportの間に`dotenv.config()`を
+// 直接書いても、それより前に書かれた./routes/plants.js(→db.js)側の
+// 評価が先に終わってしまい、db.js側でDB_PATHを読み取れない。
+// そのため専用のenv.jsに分離し、一番最初のimportとして読み込む。
+import './env.js';
+
 import express from 'express';
 import cors from 'cors';
 

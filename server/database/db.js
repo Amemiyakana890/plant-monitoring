@@ -5,7 +5,11 @@ import { DatabaseSync } from 'node:sqlite';
 // 起動時に ExperimentalWarning が出る実験的機能であり、将来APIが変わる
 // 可能性がある(参考: 展示・卒制用途では許容範囲という判断で採用している)。
 // もし本番運用まで見据える場合は better-sqlite3 等への切り替えも検討する。
-const db = new DatabaseSync('plant_monitoring.db');
+// DB_PATHは.env(env.js経由)から読み込む。app.jsの一番最初で
+// `import './env.js'` されている前提(このファイルはplants.js経由で
+// app.jsから間接的にimportされるため、env.jsの評価が先に終わっている)。
+// 未設定時は従来どおり'plant_monitoring.db'(server/直下)を使う。
+const db = new DatabaseSync(process.env.DB_PATH ?? 'plant_monitoring.db');
 
 // SQLiteは PRAGMA foreign_keys = ON を明示しない限り外部キー制約を
 // 強制しない(デフォルトはOFF)。存在しないplant_idのログが紛れ込んだり、

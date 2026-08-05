@@ -40,6 +40,9 @@ dependencies:
   # 履歴画面の折れ線グラフ表示に使用
   fl_chart: ^1.2.0
 
+  # .env(API_BASE_URLなど)読み込み用
+  flutter_dotenv: ^5.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -63,6 +66,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
+  assets:
+    - .env
   # assets:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
