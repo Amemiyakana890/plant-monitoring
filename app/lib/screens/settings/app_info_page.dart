@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimensions.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/settings_app_bar.dart';
 
 /// アプリ情報画面。
@@ -144,6 +145,7 @@ class AppInfoPage extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(),
     );
   }
 }

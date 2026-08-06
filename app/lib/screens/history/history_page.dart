@@ -38,10 +38,19 @@ class _HistoryPageState extends State<HistoryPage> {
     // 初回表示時にまだ履歴を取得していなければ取得する。
     if (_requested) return;
     _requested = true;
-    final store = PlantStoreScope.of(context);
-    if (store.history.isEmpty && !store.isLoadingHistory) {
-      store.loadHistory(range: _range);
-    }
+
+    // 注意: PlantStore.loadHistory()はnotifyListeners()を同期的に
+    // (awaitの前に)呼び出す。didChangeDependencies()はウィジェットツリーの
+    // 構築(ビルド)処理の途中で呼ばれるため、ここで直接呼び出すと
+    // 「setState() or markNeedsBuild() called during build」エラーになる。
+    // そのため、今のフレームの構築が完了した直後まで呼び出しを遅らせる。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final store = PlantStoreScope.of(context);
+      if (store.history.isEmpty && !store.isLoadingHistory) {
+        store.loadHistory(range: _range);
+      }
+    });
   }
 
   void _onRangeSelected(String range) {

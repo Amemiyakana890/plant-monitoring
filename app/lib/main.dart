@@ -4,6 +4,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/api_config.dart';
 import 'repositories/http_plant_repository.dart';
 import 'screens/main_page.dart';
+import 'state/main_tab_controller.dart';
+import 'state/main_tab_controller_scope.dart';
 import 'state/plant_store.dart';
 import 'state/plant_store_scope.dart';
 import 'state/theme_controller.dart';
@@ -37,6 +39,11 @@ class PlantMonitoringApp extends StatefulWidget {
 }
 
 class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
+  // 選択中のボトムナビゲーションタブの状態。MainPageより外側(Navigatorより
+  // 外側)に置くことで、設定配下のサブ画面(Navigator.pushで開く別ルート)
+  // からも同じ状態を参照・変更できるようにする(AppBottomNavBar参照)。
+  final MainTabController _tabController = MainTabController();
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +54,7 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
   void dispose() {
     widget.store.stopPolling();
     widget.themeController.removeListener(_onThemeChanged);
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -58,13 +66,16 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
       store: widget.store,
       child: ThemeControllerScope(
         controller: widget.themeController,
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: '植物見守り',
-          theme: AppTheme.light,
-          darkTheme: AppTheme.dark,
-          themeMode: widget.themeController.themeMode,
-          home: const MainPage(),
+        child: MainTabControllerScope(
+          controller: _tabController,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: '植物見守り',
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: widget.themeController.themeMode,
+            home: const MainPage(),
+          ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_dimensions.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/settings_app_bar.dart';
 
 /// 設定画面上部のデバイスカードから遷移する、デバイス接続(ペアリング)画面。
@@ -68,6 +69,7 @@ class DeviceConnectionPage extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(),
     );
   }
 }

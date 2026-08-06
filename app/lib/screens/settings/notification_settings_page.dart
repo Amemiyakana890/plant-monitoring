@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_dimensions.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/settings_app_bar.dart';
 
 /// 通知設定画面(通知するアラートの種類を切り替える)。
@@ -67,6 +68,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           ),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(),
     );
   }
 }

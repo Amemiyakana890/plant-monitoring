@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_dimensions.dart';
+import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/settings_app_bar.dart';
 
 /// デバイス情報画面(バッテリー残量・ファームウェア等)。
@@ -30,6 +31,7 @@ class DeviceInfoPage extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavBar(),
     );
   }
 }

@@ -22,10 +22,17 @@ class _NotificationPageState extends State<NotificationPage> {
     super.didChangeDependencies();
     if (_requested) return;
     _requested = true;
-    final store = PlantStoreScope.of(context);
-    if (store.notifications.isEmpty && !store.isLoadingNotifications) {
-      store.loadNotifications();
-    }
+
+    // history_page.dartと同じ理由(PlantStore.loadNotifications()が
+    // notifyListeners()を同期的に呼び出すため)で、
+    // 今のフレームの構築が完了した直後まで呼び出しを遅らせる。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final store = PlantStoreScope.of(context);
+      if (store.notifications.isEmpty && !store.isLoadingNotifications) {
+        store.loadNotifications();
+      }
+    });
   }
 
   IconData _iconFor(String message) {
