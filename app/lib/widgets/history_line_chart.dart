@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -27,14 +29,50 @@ class HistoryLineChart extends StatelessWidget {
         : value.toStringAsFixed(1);
   }
 
+  /// 与えられた値に近い「見やすい」目盛り間隔(1 / 2 / 5 / 10のいずれかを
+  /// 10のべき乗倍したもの)に丸める。
+  /// 例: 6.7 → 5、23 → 20、0.42 → 0.5 のように、人が読みやすい間隔にする。
+  static double _niceInterval(double rawInterval) {
+    if (rawInterval <= 0) return 1;
+    final exponent = (math.log(rawInterval) / math.ln10).floor();
+    final magnitude = math.pow(10, exponent).toDouble();
+    final residual = rawInterval / magnitude; // 1.0 〜 10.0の範囲になる
+
+    double niceResidual;
+    if (residual < 1.5) {
+      niceResidual = 1;
+    } else if (residual < 3) {
+      niceResidual = 2;
+    } else if (residual < 7) {
+      niceResidual = 5;
+    } else {
+      niceResidual = 10;
+    }
+    return niceResidual * magnitude;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final minY = values.reduce((a, b) => a < b ? a : b);
-    final maxY = values.reduce((a, b) => a > b ? a : b);
-    // 上下に少し余白を持たせて、線がカードの端に張り付かないようにする
-    final padding = ((maxY - minY).abs() * 0.2).clamp(1, double.infinity);
-    // グリッド線とY軸ラベルの間隔を揃えるため、値は一度だけ計算して共有する
-    final gridInterval = (maxY - minY + padding * 2) / 3;
+    final rawMin = values.reduce((a, b) => a < b ? a : b);
+    final rawMax = values.reduce((a, b) => a > b ? a : b);
+    final rawRange = (rawMax - rawMin).abs();
+    // 全データが同一の値の場合、範囲がゼロだと目盛りが作れないため
+    // 値の大きさに応じた最低限の範囲を確保する(0の場合はさらに1をフォールバック)。
+    final safeRange = rawRange > 0 ? rawRange : (rawMax.abs() * 0.1).clamp(1, double.infinity);
+
+    // 目盛り数の目安(3分割)を基準に、見やすい間隔(1/2/5/10系)へ丸める。
+    // これにより「32.3」「29.1」のような半端な数値ではなく、
+    // 「30」「32」のようなきれいな数値が目盛りに並ぶようになる。
+    final gridInterval = _niceInterval(safeRange / 3);
+
+    // 軸の上下端もgridIntervalの倍数に揃えることで、目盛りの数値自体を
+    // きれいな値にする(データの実際の最小/最大よりわずかに広い範囲になる)。
+    final minY = (rawMin / gridInterval).floor() * gridInterval;
+    final maxY = (rawMax / gridInterval).ceil() * gridInterval;
+    // 上下に1目盛り分の余白を持たせて、線がカードの端に張り付かないようにする
+    // (gridIntervalの倍数のまま増減させるので、目盛りの値は崩れない)。
+    final displayMinY = minY - gridInterval;
+    final displayMaxY = maxY + gridInterval;
 
     return Card(
       child: Padding(
@@ -59,8 +97,8 @@ class HistoryLineChart extends StatelessWidget {
               height: 160,
               child: LineChart(
                 LineChartData(
-                  minY: minY - padding,
-                  maxY: maxY + padding,
+                  minY: displayMinY,
+                  maxY: displayMaxY,
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
@@ -175,7 +213,11 @@ class HistoryLineChart extends StatelessWidget {
                       isCurved: true,
                       color: color,
                       barWidth: 3,
-                      dotData: const FlDotData(show: true),
+                      // 通常時は各データ点にドットを常時表示しない
+                      // (間引き後でも点数が多いと線が点の集まりに見えてしまうため)。
+                      // タップした点だけ、上のlineTouchDataのgetTouchedSpotIndicatorで
+                      // ドットを表示する。
+                      dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
                         color: color.withValues(alpha: 0.12),

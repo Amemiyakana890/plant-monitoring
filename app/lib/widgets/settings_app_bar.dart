@@ -1,64 +1,77 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 /// 設定配下のサブ画面(デバイス接続・デバイス情報・通知設定・アプリ情報等)で
-/// 共通して使うAppBar。
+/// 共通して使うヘッダー。`Scaffold`の`appBar:`ではなく`body:`側のColumnの
+/// 先頭要素として配置する(使い方は各ページの実装を参照)。
 ///
-/// アプリ全体の標準AppBar(緑背景+白字、`app_theme.dart`の`appBarTheme`)とは
-/// あえて分け、設定サブ画面では背景色に馴染む白丸の戻るボタン+太字タイトルに
-/// 統一する(アプリ情報画面のデザイン画像に合わせたスタイル)。
+/// 見た目は「上段:緑の帯」「下段:薄い背景色+丸い戻るボタン+太字タイトル」の
+/// 2段構成(デザイン画像に合わせたスタイル)。
 ///
-/// ただしステータスバー(端末最上部の時計・電池残量などが並ぶ帯)は、
-/// アプリ全体で緑(AppColors.primary)に統一したいというデザイン意図があるため、
-/// AppBar自体の背景色(ここでは薄い背景色)とは別に`systemOverlayStyle`で
-/// ステータスバーの色だけ明示的に緑へ固定している。
-class SettingsAppBar extends StatelessWidget implements PreferredSizeWidget {
+/// 緑の帯の高さは`SafeArea`の`minimum`で
+/// 「実機のノッチ/ステータスバー分の高さ」と「最低28px」の大きい方を採用する。
+/// これにより、ノッチのある実機では帯がノッチ分まで自動で伸び、
+/// ノッチが存在しないWeb/デスクトップのプレビューでも28px分の帯が
+/// 必ず表示される(OSのステータスバー機能そのものには依存しない)。
+class SettingsAppBar extends StatelessWidget {
   final String title;
+
+  static const double _minGreenBarHeight = 28;
 
   const SettingsAppBar({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: false,
-      leadingWidth: 56,
-      systemOverlayStyle: const SystemUiOverlayStyle(
-        statusBarColor: AppColors.primary,
-        statusBarIconBrightness: Brightness.light, // Android:アイコンを白系に
-        statusBarBrightness: Brightness.dark, // iOS:アイコンを白系に
-      ),
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 12),
-        child: Center(
-          child: Material(
-            color: AppColors.surface,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => Navigator.of(context).maybePop(),
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: Icon(Icons.chevron_left, color: AppColors.textPrimary),
+    final theme = Theme.of(context);
+    // ダークモードでも視認できるよう、固定の濃いグレー(AppColors.textPrimary)
+    // ではなく、テーマのテキスト色(ライト:濃いグレー/ダーク:白)を使う。
+    final onBackgroundColor = theme.textTheme.bodyLarge?.color ?? theme.colorScheme.onSurface;
+
+    return Container(
+      color: AppColors.primary,
+      child: SafeArea(
+        bottom: false,
+        minimum: const EdgeInsets.only(top: _minGreenBarHeight),
+        child: Container(
+          color: theme.scaffoldBackgroundColor,
+          height: kToolbarHeight,
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Material(
+                  // 戻るボタンの丸背景は白丸のまま統一(ライト/ダーク共通)にし、
+                  // 中のアイコンは常に濃色にすることで、どちらのテーマでも
+                  // コントラストを確保する(白背景+濃色アイコンで固定)。
+                  color: AppColors.surface,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.chevron_left,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: AppSpacing.small),
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: onBackgroundColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

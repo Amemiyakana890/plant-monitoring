@@ -22,111 +22,124 @@ class AppInfoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SettingsAppBar(title: 'アプリ情報'),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.medium),
+      body: Column(
         children: [
-          const SizedBox(height: AppSpacing.small),
-          Center(
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(AppRadii.medium),
-              ),
-              child: const Icon(Icons.eco, color: Colors.white, size: 36),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.medium),
-          Center(
-            child: Text(
-              '植物見守り',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              'バージョン 1.0.0',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.large),
-
-          // アプリについて
-          Card(
-            child: Padding(
+          const SettingsAppBar(title: 'アプリ情報'),
+          Expanded(
+            child: ListView(
               padding: const EdgeInsets.all(AppSpacing.medium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'アプリについて',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w600,
+              children: [
+                const SizedBox(height: AppSpacing.small),
+                Center(
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
+                    ),
+                    child: const Icon(
+                      Icons.eco,
+                      color: Colors.white,
+                      size: 36,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.small),
-                  Text(
-                    '植物見守りは、センサーデバイスを使って植物の環境'
-                    '(温度・湿度・土壌水分・光量)をリアルタイムで監視するアプリです。'
-                    'アラート機能で水やりのタイミングを見逃しません。',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.medium),
+                Center(
+                  child: Text(
+                    '植物見守り',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.medium),
+                ),
+                const SizedBox(height: 4),
+                Center(
+                  child: Text(
+                    'バージョン 1.0.0',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.large),
 
-          // プライバシーポリシー・利用規約・オープンソースライセンス・サポート
-          Card(
-            child: Column(
-              children: [
-                _AppInfoTile(
-                  icon: Icons.lock,
-                  iconBackground: AppColors.warning,
-                  title: 'プライバシーポリシー',
-                  onTap: () => _showComingSoon(context, 'プライバシーポリシー'),
+                // アプリについて
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.medium),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'アプリについて',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.small),
+                        Text(
+                          '植物見守りは、センサーデバイスを使って植物の環境'
+                          '(温度・湿度・土壌水分・光量)をリアルタイムで監視するアプリです。'
+                          'アラート機能で水やりのタイミングを見逃しません。',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const Divider(height: 1),
-                _AppInfoTile(
-                  icon: Icons.description,
-                  iconBackground: AppColors.info,
-                  title: '利用規約',
-                  onTap: () => _showComingSoon(context, '利用規約'),
+                const SizedBox(height: AppSpacing.medium),
+
+                // プライバシーポリシー・利用規約・オープンソースライセンス・サポート
+                Card(
+                  child: Column(
+                    children: [
+                      _AppInfoTile(
+                        icon: Icons.lock,
+                        iconBackground: AppColors.warning,
+                        title: 'プライバシーポリシー',
+                        onTap: () => _showComingSoon(context, 'プライバシーポリシー'),
+                      ),
+                      const Divider(height: 1),
+                      _AppInfoTile(
+                        icon: Icons.description,
+                        iconBackground: AppColors.info,
+                        title: '利用規約',
+                        onTap: () => _showComingSoon(context, '利用規約'),
+                      ),
+                      const Divider(height: 1),
+                      _AppInfoTile(
+                        icon: Icons.balance,
+                        iconBackground: AppColors.accent,
+                        title: 'オープンソースライセンス',
+                        onTap: () =>
+                            _showComingSoon(context, 'オープンソースライセンス'),
+                      ),
+                      const Divider(height: 1),
+                      _AppInfoTile(
+                        icon: Icons.chat_bubble,
+                        iconBackground: AppColors.secondary,
+                        title: 'サポートに問い合わせ',
+                        onTap: () => _showComingSoon(context, 'サポートに問い合わせ'),
+                      ),
+                    ],
+                  ),
                 ),
-                const Divider(height: 1),
-                _AppInfoTile(
-                  icon: Icons.balance,
-                  iconBackground: AppColors.accent,
-                  title: 'オープンソースライセンス',
-                  onTap: () => _showComingSoon(context, 'オープンソースライセンス'),
-                ),
-                const Divider(height: 1),
-                _AppInfoTile(
-                  icon: Icons.chat_bubble,
-                  iconBackground: AppColors.secondary,
-                  title: 'サポートに問い合わせ',
-                  onTap: () => _showComingSoon(context, 'サポートに問い合わせ'),
+                const SizedBox(height: AppSpacing.large),
+
+                Center(
+                  child: Text(
+                    '植物見守り © 2026',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                  ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.large),
-
-          Center(
-            child: Text(
-              '植物見守り © 2026',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey),
             ),
           ),
         ],

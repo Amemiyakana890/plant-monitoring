@@ -14,45 +14,57 @@ class DeviceConnectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SettingsAppBar(title: 'デバイス接続'),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.medium),
+      body: Column(
         children: [
-          Text('接続中のデバイス', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.small),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.wifi),
-              title: const Text('Plant Monitor 01'),
-              subtitle: const Text('接続済み・バッテリー 85%'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
+          const SettingsAppBar(title: 'デバイス接続'),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.medium),
+              children: [
+                Text(
+                  '接続中のデバイス',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.small),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.wifi),
+                    title: const Text('Plant Monitor 01'),
+                    subtitle: const Text('接続済み・バッテリー 85%'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.extraSmall),
+                        const Text('オンライン'),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.extraSmall),
-                  const Text('オンライン'),
-                ],
-              ),
+                ),
+                const SizedBox(height: AppSpacing.large),
+                Text(
+                  '近くのデバイスを探す',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.small),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('デバイスのスキャン（今後実装予定）')),
+                    );
+                  },
+                  icon: const Icon(Icons.search),
+                  label: const Text('スキャンする'),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: AppSpacing.large),
-          Text('近くのデバイスを探す', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.small),
-          OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('デバイスのスキャン（今後実装予定）')),
-              );
-            },
-            icon: const Icon(Icons.search),
-            label: const Text('スキャンする'),
           ),
         ],
       ),

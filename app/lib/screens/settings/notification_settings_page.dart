@@ -26,33 +26,41 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SettingsAppBar(title: '通知設定'),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.medium),
+      body: Column(
         children: [
-          Card(
-            child: Column(
+          const SettingsAppBar(title: '通知設定'),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.medium),
               children: [
-                SwitchListTile(
-                  title: const Text('土壌水分アラート'),
-                  subtitle: const Text('土壌水分が少なくなった時に通知します'),
-                  value: _soilAlert,
-                  onChanged: (value) => setState(() => _soilAlert = value),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('温度アラート'),
-                  subtitle: const Text('温度が適正範囲から外れた時に通知します'),
-                  value: _temperatureAlert,
-                  onChanged: (value) =>
-                      setState(() => _temperatureAlert = value),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('バッテリーアラート'),
-                  subtitle: const Text('デバイスのバッテリー残量が少なくなった時に通知します'),
-                  value: _batteryAlert,
-                  onChanged: (value) => setState(() => _batteryAlert = value),
+                Card(
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        title: const Text('土壌水分アラート'),
+                        subtitle: const Text('土壌水分が少なくなった時に通知します'),
+                        value: _soilAlert,
+                        onChanged: (value) =>
+                            setState(() => _soilAlert = value),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        title: const Text('温度アラート'),
+                        subtitle: const Text('温度が適正範囲から外れた時に通知します'),
+                        value: _temperatureAlert,
+                        onChanged: (value) =>
+                            setState(() => _temperatureAlert = value),
+                      ),
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        title: const Text('バッテリーアラート'),
+                        subtitle: const Text('デバイスのバッテリー残量が少なくなった時に通知します'),
+                        value: _batteryAlert,
+                        onChanged: (value) =>
+                            setState(() => _batteryAlert = value),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

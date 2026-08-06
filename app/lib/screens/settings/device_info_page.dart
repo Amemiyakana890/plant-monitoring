@@ -13,15 +13,21 @@ class DeviceInfoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SettingsAppBar(title: 'デバイス情報'),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.medium),
-        children: const [
-          _InfoTile(label: 'デバイス名', value: 'Plant Monitor 01'),
-          _InfoTile(label: '接続状態', value: '接続済み'),
-          _InfoTile(label: 'バッテリー残量', value: '85%'),
-          _InfoTile(label: 'ファームウェアバージョン', value: '1.0.2'),
-          _InfoTile(label: 'MACアドレス', value: 'AA:BB:CC:DD:EE:FF'),
+      body: Column(
+        children: [
+          const SettingsAppBar(title: 'デバイス情報'),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.medium),
+              children: const [
+                _InfoTile(label: 'デバイス名', value: 'Plant Monitor 01'),
+                _InfoTile(label: '接続状態', value: '接続済み'),
+                _InfoTile(label: 'バッテリー残量', value: '85%'),
+                _InfoTile(label: 'ファームウェアバージョン', value: '1.0.2'),
+                _InfoTile(label: 'MACアドレス', value: 'AA:BB:CC:DD:EE:FF'),
+              ],
+            ),
+          ),
         ],
       ),
     );
