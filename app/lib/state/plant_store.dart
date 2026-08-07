@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/device.dart';
 import '../models/environment_log.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
@@ -23,16 +24,21 @@ class PlantStore extends ChangeNotifier {
   Plant? plant;
   List<EnvironmentLog> history = [];
   List<PlantNotification> notifications = [];
+  List<Device> devices = [];
 
   bool isLoadingPlant = false;
   bool isLoadingHistory = false;
   bool isLoadingNotifications = false;
+  bool isLoadingDevices = false;
+  bool isPairing = false;
 
   // データの種類ごとにエラーを分ける。1つの errorMessage にまとめると、
   // 例えば履歴取得の失敗が通知一覧のエラー表示を上書きしてしまうため。
   String? errorMessage;
   String? historyErrorMessage;
   String? notificationsErrorMessage;
+  String? devicesErrorMessage;
+  String? pairErrorMessage;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
@@ -171,6 +177,74 @@ class PlantStore extends ChangeNotifier {
       notificationsErrorMessage = '通知の既読処理に失敗しました';
     } finally {
       notifyListeners();
+    }
+  }
+
+  // ---- デバイス接続(設計書5-3) ----
+
+  Future<void> loadDevices() async {
+    isLoadingDevices = true;
+    devicesErrorMessage = null;
+    notifyListeners();
+    try {
+      devices = await _repository.fetchDevices();
+    } catch (_) {
+      devicesErrorMessage = 'デバイス一覧を取得できませんでした';
+    } finally {
+      isLoadingDevices = false;
+      notifyListeners();
+    }
+  }
+
+  /// デバイスをペアリングし、続けて現在の植物に紐付ける。
+  ///
+  /// v1は「1台のデバイス・1株のみ」という制約(要件定義書9章)のため、
+  /// ペアリングと紐付けを1操作にまとめている(複数デバイス対応時は
+  /// 「ペアリングだけ行い、紐付け先の植物を選ぶ」フローに分離する想定)。
+  /// 成功時はtrue、失敗時はfalse(pairErrorMessageにメッセージを設定)。
+  ///
+  /// 失敗理由がデバイス一覧のエラー(devicesErrorMessage)と混ざらないよう、
+  /// 専用のpairErrorMessageに分けている(以前は共用しており、一覧側にも
+  /// ペアリング失敗の文言が出てしまう不具合があった)。
+  Future<bool> pairAndLinkDevice({
+    required String deviceName,
+    required String macAddress,
+  }) async {
+    isPairing = true;
+    pairErrorMessage = null;
+    notifyListeners();
+    try {
+      final device = await _repository.pairDevice(
+        deviceName: deviceName,
+        macAddress: macAddress,
+      );
+      plant = await _repository.updatePlant(deviceId: device.id);
+      devices = await _repository.fetchDevices();
+      return true;
+    } catch (e) {
+      // 原因切り分けのため、サーバーからの実際のエラー内容(ステータス・
+      // レスポンスボディ)を含めて表示する(HttpPlantRepository._ensureOk参照)。
+      pairErrorMessage = 'デバイスのペアリングに失敗しました: $e';
+      return false;
+    } finally {
+      isPairing = false;
+      notifyListeners();
+    }
+  }
+
+  /// ペアリング解除。サーバー側のON DELETE SET NULL(設計書6章)により、
+  /// 紐付いていた植物のdevice_idも自動的にnullへ戻るため、解除後は
+  /// plant/devicesの両方を再取得して画面に反映する。
+  Future<bool> unpairDevice(int deviceId) async {
+    pairErrorMessage = null;
+    try {
+      await _repository.unpairDevice(deviceId);
+      await Future.wait([loadPlant(), loadDevices()]);
+      return true;
+    } catch (e) {
+      pairErrorMessage = 'ペアリング解除に失敗しました: $e';
+      notifyListeners();
+      return false;
     }
   }
 }

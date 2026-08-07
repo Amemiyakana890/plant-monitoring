@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../data/dummy_plants.dart';
+import '../models/device.dart';
 import '../models/environment_log.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
@@ -17,6 +18,10 @@ import 'plant_repository.dart';
 /// 画面側は必ず[PlantStore]経由でデータを取得する。
 class DummyPlantRepository implements PlantRepository {
   Plant _plant = dummyPlant;
+
+  // 実サーバー同様、ペアリング済みデバイスは正の連番idを払い出す。
+  int _nextDeviceId = 1;
+  final List<Device> _devices = [];
 
   final List<PlantNotification> _notifications = [
     const PlantNotification(
@@ -55,9 +60,9 @@ class DummyPlantRepository implements PlantRepository {
   }
 
   @override
-  Future<Plant> updatePlant({String? name, String? species}) async {
+  Future<Plant> updatePlant({String? name, String? species, int? deviceId}) async {
     await _simulateNetwork();
-    _plant = _plant.copyWith(name: name, species: species);
+    _plant = _plant.copyWith(name: name, species: species, deviceId: deviceId);
     return _plant;
   }
 
@@ -151,5 +156,59 @@ class DummyPlantRepository implements PlantRepository {
     final updated = _notifications[index].copyWith(isRead: true);
     _notifications[index] = updated;
     return updated;
+  }
+
+  // ---- 設計書5-3 デバイスAPI(ダミー実装) ----
+
+  @override
+  Future<List<Device>> fetchDevices() async {
+    await _simulateNetwork();
+    return List.unmodifiable(_devices);
+  }
+
+  @override
+  Future<Device> fetchDevice(int id) async {
+    await _simulateNetwork();
+    return _devices.firstWhere(
+      (d) => d.id == id,
+      orElse: () => throw StateError('device not found: $id'),
+    );
+  }
+
+  @override
+  Future<Device> pairDevice({
+    required String deviceName,
+    required String macAddress,
+  }) async {
+    await _simulateNetwork();
+    // HttpPlantRepositoryと挙動を合わせ、同じMACアドレスなら既存デバイスを
+    // 再利用する(実サーバーの409 DEVICE_ALREADY_PAIRED時のフォールバックと同じ考え方)。
+    final normalized = macAddress.toUpperCase();
+    for (final device in _devices) {
+      if (device.macAddress.toUpperCase() == normalized) {
+        return device;
+      }
+    }
+    final device = Device(
+      id: _nextDeviceId++,
+      deviceName: deviceName,
+      macAddress: macAddress,
+      status: 'connected',
+      batteryLevel: 100,
+      firmwareVersion: '1.0.0',
+      pairedAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    _devices.add(device);
+    return device;
+  }
+
+  @override
+  Future<void> unpairDevice(int id) async {
+    await _simulateNetwork();
+    _devices.removeWhere((d) => d.id == id);
+    // 実サーバーのON DELETE SET NULL相当の挙動を再現する。
+    if (_plant.deviceId == id) {
+      _plant = _plant.copyWith(clearDeviceId: true);
+    }
   }
 }

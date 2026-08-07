@@ -70,3 +70,37 @@ ADC最大値(4095)付近に張り付いていた。
 
 - `esp32/plant_sensor_integrated.ino` — `SOIL_PIN`をGPIO32に変更、`SOIL_RAW_DRY`/`WET`を実測値に更新
 - （単体確認用）M5Stack公式サンプル`EARTH.ino`(本体Groveポート直挿し、GPIO32/26)
+
+---
+
+## 2026-08-07: デバイスペアリング機能(サーバー側データモデル・API)の実装
+
+### 概要
+
+README進捗の「デバイスペアリング機能の実装」のうち、実機でのBLE/Wi-Fiスキャンには着手せず、
+まずサーバー側のデータモデル・APIとdevice_id起点の設計への切り戻しを実装した。
+アプリ側のスキャンUI(`device_connection_page.dart`)は現状のモックのまま変更していない。
+
+### 対応内容
+
+- `server/database/db.js`: `devices`テーブルを追加、`plants`テーブルに`device_id`列を追加
+  (既存の`plant_monitoring.db`に対しても`PRAGMA table_info`で存在確認のうえ
+  `ALTER TABLE`でマイグレーションするようにした)
+- `server/controllers/devicesController.js` / `server/routes/devices.js`:
+  `GET /devices`・`POST /devices/pair`・`GET /devices/:id`・`DELETE /devices/:id`を実装
+- `server/controllers/plantsController.js`: `POST /plants`・`PATCH /plants/:id`で
+  `device_id`を受け取れるように変更(存在しないdevice_id指定時は404 DEVICE_NOT_FOUND)
+- `server/controllers/sensorController.js`: `plant_id`を直接受け取る簡易実装から、
+  設計書5-4本来の`device_id`起点の設計に戻した(`plants.device_id`で植物を引く)
+- `esp32/plant_sensor_integrated.ino`: `PLANT_ID`定数を`DEVICE_ID`に変更し、
+  送信JSONのキーも`device_id`に変更
+- `docs/system-design.md` 5-3/5-4を実装に合わせて更新(暫定実装だった旨の注記を削除)
+
+### 今後の対応
+
+- アプリ側の「近くのデバイスを探す」スキャンUIを実機と接続する(BLEでの実機検出、
+  または簡易的なmDNS/IP手入力での検出。方式は別途判断)
+- `PlantRepository`にデバイス関連メソッド(`fetchDevices`・`pairDevice`等)を追加し、
+  `device_connection_page.dart`・`device_info_page.dart`をハードコード値からAPI接続に切り替える
+- ペアリング完了後、アプリ側から`PATCH /plants/:id`で`device_id`を設定するフローをUIに組み込む
+  (現状はcurl等での手動設定を想定)

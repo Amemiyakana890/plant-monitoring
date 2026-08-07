@@ -2,14 +2,15 @@ import db from '../database/db.js';
 import { sendError } from '../utils/errors.js';
 
 const insertPlantStmt = db.prepare(
-  `INSERT INTO plants (name, species, image) VALUES (?, ?, ?)`,
+  `INSERT INTO plants (name, species, image, device_id) VALUES (?, ?, ?, ?)`,
 );
 
 const selectPlantStmt = db.prepare(`SELECT * FROM plants WHERE id = ?`);
 const selectAllPlantsStmt = db.prepare(`SELECT * FROM plants ORDER BY id`);
+const selectDeviceStmt = db.prepare(`SELECT * FROM devices WHERE id = ?`);
 
 const updatePlantStmt = db.prepare(
-  `UPDATE plants SET name = COALESCE(?, name), species = COALESCE(?, species) WHERE id = ?`,
+  `UPDATE plants SET name = COALESCE(?, name), species = COALESCE(?, species), device_id = COALESCE(?, device_id) WHERE id = ?`,
 );
 
 const deletePlantStmt = db.prepare(`DELETE FROM plants WHERE id = ?`);
@@ -33,6 +34,7 @@ function toPlantResponse(plantRow) {
     id: plantRow.id,
     name: plantRow.name,
     species: plantRow.species,
+    device_id: plantRow.device_id ?? null,
     status: plantRow.status,
     temperature: latestLog?.temperature ?? null,
     humidity: latestLog?.humidity ?? null,
@@ -43,16 +45,27 @@ function toPlantResponse(plantRow) {
 }
 
 // POST /plants (設計書5-2)
-// 現段階ではデバイスのペアリング機能は未実装のため、device_id は受け取らない。
-// デバイス接続機能に着手するタイミングで追加する想定。
+// device_idは任意項目(未接続でも登録可)。指定する場合は登録済みのデバイスである必要がある。
 export function createPlant(req, res) {
-  const { name, species, image } = req.body ?? {};
+  const { name, species, image, device_id } = req.body ?? {};
 
   if (!name || typeof name !== 'string') {
     return sendError(res, 400, 'VALIDATION_ERROR', 'name は必須です');
   }
 
-  const result = insertPlantStmt.run(name, species ?? null, image ?? null);
+  if (device_id !== undefined && device_id !== null) {
+    const device = selectDeviceStmt.get(Number(device_id));
+    if (!device) {
+      return sendError(res, 404, 'DEVICE_NOT_FOUND', '指定されたデバイスが見つかりません');
+    }
+  }
+
+  const result = insertPlantStmt.run(
+    name,
+    species ?? null,
+    image ?? null,
+    device_id ?? null,
+  );
   const created = selectPlantStmt.get(result.lastInsertRowid);
 
   res.status(201).json(toPlantResponse(created));
@@ -77,7 +90,8 @@ export function getPlant(req, res) {
 }
 
 // PATCH /plants/:id (設計書5-2)
-// 編集可能なのは name / species のみ。未指定のフィールドは現在の値を保持する。
+// 編集可能なのは name / species / device_id。未指定のフィールドは現在の値を保持する。
+// device_idはデバイスペアリング完了後にここで紐付ける想定(POST /devices/pairとは別操作)。
 export function updatePlant(req, res) {
   const id = Number(req.params.id);
   const existing = selectPlantStmt.get(id);
@@ -86,16 +100,27 @@ export function updatePlant(req, res) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
   }
 
-  const { name, species } = req.body ?? {};
+  const { name, species, device_id } = req.body ?? {};
 
-  if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+  // JSONで明示的に`null`を送ってきた場合(未指定の意図)も「更新しない」扱いに
+  // したいので、undefinedだけでなくnullも許容する(device_idの判定と揃える)。
+  // これを`!== undefined`だけにしていると、クライアントが
+  // {"name": null, "device_id": 1} のように一部フィールドだけ更新したい時に
+  // 誤って400 VALIDATION_ERRORになってしまう(実際に発生した不具合)。
+  if (name !== undefined && name !== null && (typeof name !== 'string' || name.trim() === '')) {
     return sendError(res, 400, 'VALIDATION_ERROR', 'name は空でない文字列で指定してください');
   }
-  if (species !== undefined && typeof species !== 'string') {
+  if (species !== undefined && species !== null && typeof species !== 'string') {
     return sendError(res, 400, 'VALIDATION_ERROR', 'species は文字列で指定してください');
   }
+  if (device_id !== undefined && device_id !== null) {
+    const device = selectDeviceStmt.get(Number(device_id));
+    if (!device) {
+      return sendError(res, 404, 'DEVICE_NOT_FOUND', '指定されたデバイスが見つかりません');
+    }
+  }
 
-  updatePlantStmt.run(name ?? null, species ?? null, id);
+  updatePlantStmt.run(name ?? null, species ?? null, device_id ?? null, id);
   const updated = selectPlantStmt.get(id);
   res.json(toPlantResponse(updated));
 }

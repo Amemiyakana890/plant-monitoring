@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/device.dart';
 import '../models/environment_log.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
@@ -54,13 +55,15 @@ class HttpPlantRepository implements PlantRepository {
   }
 
   @override
-  Future<Plant> updatePlant({String? name, String? species}) async {
+  Future<Plant> updatePlant({String? name, String? species, int? deviceId}) async {
     final id = await _resolvePlantId();
     final uri = Uri.parse('$baseUrl/plants/$id');
     final res = await http.patch(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'name': name, 'species': species}),
+      // deviceId未指定時はnullを送るが、サーバー側はCOALESCEで現在値を
+      // 維持するだけなので、既存の紐付けを壊すことはない(設計書5-2参照)。
+      body: jsonEncode({'name': name, 'species': species, 'device_id': deviceId}),
     );
     _ensureOk(res, 'PATCH /plants/$id');
     return Plant.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -109,6 +112,68 @@ class HttpPlantRepository implements PlantRepository {
     return PlantNotification.fromJson(
       jsonDecode(res.body) as Map<String, dynamic>,
     );
+  }
+
+  // ---- 設計書5-3 デバイスAPI ----
+
+  @override
+  Future<List<Device>> fetchDevices() async {
+    final uri = Uri.parse('$baseUrl/devices');
+    final res = await http.get(uri);
+    _ensureOk(res, 'GET /devices');
+
+    final list = jsonDecode(res.body) as List<dynamic>;
+    return list
+        .map((e) => Device.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<Device> fetchDevice(int id) async {
+    final uri = Uri.parse('$baseUrl/devices/$id');
+    final res = await http.get(uri);
+    _ensureOk(res, 'GET /devices/$id');
+    return Device.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Device> pairDevice({
+    required String deviceName,
+    required String macAddress,
+  }) async {
+    final uri = Uri.parse('$baseUrl/devices/pair');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'device_name': deviceName, 'mac_address': macAddress}),
+    );
+
+    // 409 DEVICE_ALREADY_PAIRED: 同じMACアドレスのデバイスが既に登録済み
+    // (例: 以前の試行でペアリング自体は成功していたが、その後の植物への
+    // 紐付け(updatePlant)が失敗して見かけ上「失敗」に見えていたケース等)。
+    // 新規作成はできないので、既存のデバイスを取得して代わりに返す。
+    // これにより同じMACアドレスで再実行すれば正常に紐付けまで進められる。
+    if (res.statusCode == 409) {
+      final existingDevices = await fetchDevices();
+      final normalized = macAddress.toUpperCase();
+      for (final device in existingDevices) {
+        if (device.macAddress.toUpperCase() == normalized) {
+          return device;
+        }
+      }
+      // 409だが一覧に見当たらない(タイミングのずれ等)場合は、
+      // 元のエラーをそのまま伝える。
+    }
+
+    _ensureOk(res, 'POST /devices/pair');
+    return Device.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> unpairDevice(int id) async {
+    final uri = Uri.parse('$baseUrl/devices/$id');
+    final res = await http.delete(uri);
+    _ensureOk(res, 'DELETE /devices/$id');
   }
 
   void _ensureOk(http.Response res, String label) {

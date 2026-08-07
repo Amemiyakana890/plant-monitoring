@@ -27,6 +27,7 @@ class Plant {
   final int id;
   final String name;
   final String species;
+  final int? deviceId;
   final double temperature;
   final double humidity;
   final double soilMoisture;
@@ -38,6 +39,7 @@ class Plant {
     required this.id,
     required this.name,
     required this.species,
+    this.deviceId,
     required this.temperature,
     required this.humidity,
     required this.soilMoisture,
@@ -62,11 +64,20 @@ class Plant {
         '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
 
-  Plant copyWith({String? name, String? species}) {
+  /// [deviceId]は明示的にnullを渡したいケース(ペアリング解除)があるため、
+  /// 「未指定(現在の値を維持)」と「nullにしたい」を区別できるよう
+  /// [clearDeviceId]で切り替える(単純に`deviceId: null`だと区別できないため)。
+  ///
+  /// 注意: 実際のペアリング解除はサーバー側のON DELETE SET NULL(6章)で
+  /// 自動的に行われるため、通常はDELETE /devices/:id → fetchPlant()で
+  /// 再取得する形を使う。このcopyWithの[clearDeviceId]はローカルの
+  /// 楽観的更新など、サーバーを介さずUI側の状態だけ先に変えたい場合向け。
+  Plant copyWith({String? name, String? species, int? deviceId, bool clearDeviceId = false}) {
     return Plant(
       id: id,
       name: name ?? this.name,
       species: species ?? this.species,
+      deviceId: clearDeviceId ? null : (deviceId ?? this.deviceId),
       temperature: temperature,
       humidity: humidity,
       soilMoisture: soilMoisture,
@@ -90,6 +101,7 @@ class Plant {
       id: json['id'] as int,
       name: json['name'] as String,
       species: json['species'] as String? ?? '',
+      deviceId: json['device_id'] as int?,
       temperature: (json['temperature'] as num?)?.toDouble() ?? 0.0,
       humidity: (json['humidity'] as num?)?.toDouble() ?? 0.0,
       soilMoisture: (json['soil'] as num?)?.toDouble() ?? 0.0,

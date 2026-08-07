@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plant_monitoring_app/models/device.dart';
 import 'package:plant_monitoring_app/models/environment_log.dart';
 import 'package:plant_monitoring_app/models/plant.dart';
 import 'package:plant_monitoring_app/models/plant_notification.dart';
@@ -43,8 +44,8 @@ class FakePlantRepository implements PlantRepository {
   }
 
   @override
-  Future<Plant> updatePlant({String? name, String? species}) async {
-    return plant.copyWith(name: name, species: species);
+  Future<Plant> updatePlant({String? name, String? species, int? deviceId}) async {
+    return plant.copyWith(name: name, species: species, deviceId: deviceId);
   }
 
   @override
@@ -65,6 +66,37 @@ class FakePlantRepository implements PlantRepository {
     final target = notifications.firstWhere((n) => n.id == id);
     return target.copyWith(isRead: true);
   }
+
+  // ---- デバイスAPI(テストでは未使用のため、必要になったコンストラクタ引数で拡張する) ----
+
+  final List<Device> devices = const [];
+  final bool throwOnPairDevice = false;
+
+  @override
+  Future<List<Device>> fetchDevices() async => devices;
+
+  @override
+  Future<Device> fetchDevice(int id) async =>
+      devices.firstWhere((d) => d.id == id);
+
+  @override
+  Future<Device> pairDevice({
+    required String deviceName,
+    required String macAddress,
+  }) async {
+    if (throwOnPairDevice) {
+      throw StateError('pairing error');
+    }
+    return Device(
+      id: 1,
+      deviceName: deviceName,
+      macAddress: macAddress,
+      status: 'connected',
+    );
+  }
+
+  @override
+  Future<void> unpairDevice(int id) async {}
 }
 
 const _unreadNotification = PlantNotification(

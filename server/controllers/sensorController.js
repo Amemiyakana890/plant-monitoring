@@ -3,7 +3,12 @@ import { determineStatus } from '../utils/plantStatus.js';
 import { validateSensorPayload } from '../utils/validation.js';
 import { sendError } from '../utils/errors.js';
 
-const selectPlantStmt = db.prepare(`SELECT * FROM plants WHERE id = ?`);
+// device_idから紐づく植物を1件引く(設計書6章: plants.device_id → devices.id)。
+// 設計書5-4本文の「devices.plant_id を参照」という記述は、実際のテーブル定義
+// (6章)とは逆向きの記載だったための表記ゆれ。実装は6章のスキーマに合わせる。
+const selectPlantByDeviceIdStmt = db.prepare(
+  `SELECT * FROM plants WHERE device_id = ?`,
+);
 
 const insertLogStmt = db.prepare(
   `INSERT INTO sensor_logs (plant_id, temperature, humidity, soil, illuminance)
@@ -40,18 +45,17 @@ function maybeCreateNotification(plantId, previousStatus, newStatus) {
   insertNotificationStmt.run(plantId, message);
 }
 
-// POST /sensor
+// POST /sensor (設計書5-4)
 //
-// 設計書5-4はESP32が device_id を送り、サーバーが devices.plant_id を
-// 引く設計だったが、Arduino/M5 ATOM Matrix側の実装都合により、
-// 今回は plant_id を直接受け取る簡易版にしている
-// (デバイスのペアリング機能に着手する際に見直す想定。設計書5-4に注記済み)。
+// デバイスペアリング機能の実装に伴い、plant_idを直接受け取る簡易版から
+// device_id起点の本来設計に戻した。ESP32はdevice_idを送り、サーバー側で
+// plants.device_idを参照してどの植物のログかを判定する。
 export function receiveSensorData(req, res) {
-  const { plant_id, temperature, humidity, soil, illuminance } =
+  const { device_id, temperature, humidity, soil, illuminance } =
     req.body ?? {};
 
   const validationError = validateSensorPayload({
-    plant_id,
+    device_id,
     temperature,
     humidity,
     soil,
@@ -61,9 +65,16 @@ export function receiveSensorData(req, res) {
     return sendError(res, 400, 'VALIDATION_ERROR', validationError);
   }
 
-  const plant = selectPlantStmt.get(Number(plant_id));
+  const plant = selectPlantByDeviceIdStmt.get(Number(device_id));
   if (!plant) {
-    return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
+    // デバイス自体は登録済みだが、どの植物にも紐付けられていない
+    // (POST /plants または PATCH /plants/:id でdevice_idを設定していない)場合もここに来る。
+    return sendError(
+      res,
+      404,
+      'PLANT_NOT_FOUND',
+      '指定されたデバイスに紐付く植物が見つかりません。先にPOST /plantsまたはPATCH /plants/:idでdevice_idを設定してください',
+    );
   }
 
   insertLogStmt.run(

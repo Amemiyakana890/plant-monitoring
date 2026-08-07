@@ -169,11 +169,19 @@ project
 { "name": "モンステラ(リビング)" }
 ```
 
+デバイスペアリング後に紐付けを行う場合は`device_id`も指定できる(存在しないdevice_idを指定した場合は404 DEVICE_NOT_FOUNDを返す)。
+
+```json
+{ "device_id": 1 }
+```
+
 ### 5-3. デバイス API
+
+> **実装メモ(2026年8月)**: 現バージョンはBluetooth/Wi-Fiでの実機スキャン自体は未実装で、まずデータモデル・API(本節)とdevice_id起点のセンサー受信(5-4)を先に実装した段階。アプリ側の`設定/デバイス接続`画面(スキャンUI)は今のところモックのまま。
 
 **POST /devices/pair リクエスト例**
 
-アプリがBluetooth/Wi-Fi経由でデバイスを検出した後、サーバーにペアリング情報を登録する。
+アプリがBluetooth/Wi-Fi経由でデバイスを検出した後、サーバーにペアリング情報を登録する。`mac_address`は`AA:BB:CC:DD:EE:FF`形式(コロン区切り16進数)で指定する。同じ`mac_address`のデバイスが既に登録済みの場合は409 DEVICE_ALREADY_PAIREDを返す。
 
 ```json
 {
@@ -182,41 +190,33 @@ project
 }
 ```
 
+- レスポンス:作成されたデバイスオブジェクト(201 Created)。この時点では植物とは紐付いていないため、続けてPATCH /plants/:idで`device_id`を設定する(5-2参照)。
+
 **GET /devices/:id レスポンス例**
 
 ```json
 {
   "id": 1,
   "device_name": "Plant Monitor 01",
+  "mac_address": "AA:BB:CC:DD:EE:FF",
   "battery_level": 85,
   "firmware_version": "1.0.2",
-  "status": "connected"
+  "status": "connected",
+  "paired_at": "2026-08-07T01:00:00Z"
 }
 ```
+
+存在しないIDを指定した場合は404 DEVICE_NOT_FOUNDを返す。
+
+**DELETE /devices/:id**
+
+ペアリング解除。デバイス行を削除する(紐付いていた植物は削除されず、`device_id`が`null`に戻るのみ。6章の`ON DELETE SET NULL`を参照)。
 
 ### 5-4. センサー API
 
 **POST /sensor リクエスト例**
 
-> **実装メモ(2026年7月時点)**: 当初はESP32がdevice_idを送り、サーバー側で`devices.plant_id`を引く設計だったが、Arduino/M5 ATOM Matrix側の実装都合により、現バージョンはplant_idを直接受け取る簡易版で実装している(`server/controllers/sensorController.js`参照)。デバイスペアリング機能(`devices`テーブル・`POST /devices/pair`)に着手するタイミングで、本節を下記のdevice_id起点の設計に戻す。
-
-```json
-{
-  "plant_id": 1,
-  "temperature": 24.5,
-  "humidity": 61,
-  "soil": 40,
-  "illuminance": 300
-}
-```
-
-- サーバー側は受信時に`sensor_logs`へ保存すると同時に、閾値と比較して`plants.status`を更新する(5-7参照)
-- バリデーション:`plant_id`は正の整数、`soil`は0〜100の数値(必須)、`temperature`は-20〜60、`humidity`は0〜100、`illuminance`は0以上の数値(任意項目は指定時のみ検証)。範囲外・型不正の場合は400 VALIDATION_ERRORを返す。
-
-<details>
-<summary>参考: device_id起点の元設計(デバイスペアリング実装時に復帰予定)</summary>
-
-ESP32はデバイスIDを含めてデータを送信する(植物IDではなくデバイスIDを起点にする。デバイスと植物は1:1で紐付くため、サーバー側で`devices.plant_id`を参照してどの植物のログかを判定する)。
+ESP32はデバイスIDを含めてデータを送信する(植物IDではなくデバイスIDを起点にする)。デバイスと植物は1:1で紐付くため、サーバー側で`plants.device_id`を参照してどの植物のログかを判定する(6章のテーブル定義を参照。デバイスペアリング機能の実装により、2026年8月から本設計で稼働している)。
 
 ```json
 {
@@ -228,7 +228,9 @@ ESP32はデバイスIDを含めてデータを送信する(植物IDではなく�
 }
 ```
 
-</details>
+- サーバー側は受信時に`sensor_logs`へ保存すると同時に、閾値と比較して`plants.status`を更新する(5-7参照)
+- バリデーション:`device_id`は正の整数、`soil`は0〜100の数値(必須)、`temperature`は-20〜60、`humidity`は0〜100、`illuminance`は0以上の数値(任意項目は指定時のみ検証)。範囲外・型不正の場合は400 VALIDATION_ERRORを返す。
+- `device_id`に紐づく植物が存在しない場合(デバイス未登録、またはデバイスがどの植物にも紐付けられていない場合)は404 PLANT_NOT_FOUNDを返す。
 
 ### 5-5. 履歴 API
 
@@ -285,8 +287,8 @@ ESP32はデバイスIDを含めてデータを送信する(植物IDではなく�
 | HTTPステータス | 内容 |
 |---|---|
 | 400 | リクエスト不正(バリデーションエラー) |
-| 404 | 対象リソースが存在しない |
-| 409 | デバイスが既にペアリング済み等の競合 |
+| 404 | 対象リソースが存在しない(例: `PLANT_NOT_FOUND` / `DEVICE_NOT_FOUND`) |
+| 409 | デバイスが既にペアリング済み等の競合(`DEVICE_ALREADY_PAIRED`) |
 | 500 | サーバー内部エラー |
 
 ## 6. データベース設計(ER図)
@@ -489,7 +491,7 @@ ESP32
 POST /sensor
 送信
 {
-  "plant_id": 1,
+  "device_id": 1,
   "temperature": 24.5,
   "humidity": 61,
   "soil": 40,

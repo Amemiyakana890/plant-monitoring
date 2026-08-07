@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/device.dart';
+import '../../state/plant_store_scope.dart';
 import '../../state/theme_controller.dart';
 import '../../state/theme_controller_scope.dart';
 import '../../theme/app_colors.dart';
@@ -9,8 +11,23 @@ import 'device_connection_page.dart';
 import 'device_info_page.dart';
 import 'notification_settings_page.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  @override
+  void initState() {
+    super.initState();
+    // 上部カードに実際の接続状況を出すため、設定タブを開いたタイミングで
+    // デバイス一覧を読み込んでおく。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PlantStoreScope.of(context).loadDevices();
+    });
+  }
 
   void _push(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
@@ -19,6 +36,14 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeController = ThemeControllerScope.of(context);
+    final store = PlantStoreScope.of(context);
+    final linkedDeviceId = store.plant?.deviceId;
+
+    Device? linkedDevice;
+    if (linkedDeviceId != null) {
+      final matches = store.devices.where((d) => d.id == linkedDeviceId);
+      linkedDevice = matches.isEmpty ? null : matches.first;
+    }
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.medium),
@@ -27,6 +52,7 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: AppSpacing.large),
 
         // 上部:接続中デバイスのカード。タップでデバイス接続画面へ。
+        // linkedDeviceがnullの場合(まだペアリングしていない)は案内文を出す。
         Card(
           color: AppColors.primary,
           child: InkWell(
@@ -46,7 +72,9 @@ class SettingsPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Plant Monitor 01',
+                          linkedDevice?.deviceName ?? 'デバイス未接続',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: Colors.white,
@@ -54,28 +82,35 @@ class SettingsPage extends StatelessWidget {
                               ),
                         ),
                         Text(
-                          '接続済み・バッテリー 85%',
+                          linkedDevice != null
+                              ? '接続済み・バッテリー ${linkedDevice.batteryLevel ?? '-'}%'
+                              : 'タップしてデバイスを登録してください',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: Colors.white70),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: AppSpacing.small),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.lightGreenAccent,
+                        decoration: BoxDecoration(
+                          color: linkedDevice != null
+                              ? Colors.lightGreenAccent
+                              : Colors.white38,
                           shape: BoxShape.circle,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.extraSmall),
-                      const Text(
-                        'オンライン',
-                        style: TextStyle(color: Colors.white),
+                      Text(
+                        linkedDevice != null ? 'オンライン' : '未接続',
+                        style: const TextStyle(color: Colors.white),
                       ),
                       const Icon(Icons.chevron_right, color: Colors.white70),
                     ],
@@ -94,7 +129,11 @@ class SettingsPage extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.battery_full),
                 title: const Text('デバイス情報'),
-                subtitle: const Text('バッテリー残量85%・ファームウェア 1.0.2'),
+                subtitle: Text(
+                  linkedDevice != null
+                      ? 'バッテリー残量${linkedDevice.batteryLevel ?? '-'}%・ファームウェア ${linkedDevice.firmwareVersion ?? '-'}'
+                      : 'デバイス未接続',
+                ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _push(context, const DeviceInfoPage()),
               ),

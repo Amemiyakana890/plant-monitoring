@@ -33,9 +33,11 @@
 const int SERVER_PORT = 3000;
 const char* SENSOR_ENDPOINT = "/api/sensor";
 
-// v1は1台のデバイス・1株のみのため、事前にPOST /plantsで作成した
-// 植物のidを固定で指定する(通常は1)。
-const int PLANT_ID = 1;
+// デバイスペアリング機能の実装に伴い、plant_idの直接指定から
+// device_id起点(設計書5-4)に戻した。事前にPOST /devices/pairで
+// このデバイスを登録し、払い出されたidをここに設定する
+// (登録したデバイスは別途PATCH /plants/:idで植物と紐付けておくこと)。
+const int DEVICE_ID = 3;
 
 // ---- 土壌水分センサー(M5Stack Unit Earth, U019, 抵抗式) ----
 // 当初はATOM PortABC拡張ベースのPort B経由(GPIO33)で接続していたが、
@@ -129,7 +131,7 @@ bool sendSensorData(float temperature, float humidity, float soil) {
   http.addHeader("Content-Type", "application/json");
 
   String payload = String("{") +
-      "\"plant_id\":" + PLANT_ID + "," +
+      "\"device_id\":" + DEVICE_ID + "," +
       "\"temperature\":" + String(temperature, 1) + "," +
       "\"humidity\":" + String(humidity, 1) + "," +
       "\"soil\":" + String(soil, 1) +

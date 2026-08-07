@@ -21,9 +21,26 @@ db.exec('PRAGMA foreign_keys = ON;');
 // タイムゾーン情報のない "2026-08-04 01:08:52" 形式だったため、
 // Flutter側でローカル時刻として誤解釈され表示が9時間ズレる原因になっていた。
 // 表示側(Plant.updatedAtDisplay)で .toLocal() する前提のフォーマット。
+// devicesはplantsより先に作成する(plants.device_idがdevicesを参照するため)。
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_name TEXT NOT NULL,
+    mac_address TEXT NOT NULL UNIQUE,
+    firmware_version TEXT,
+    battery_level INTEGER,
+    status TEXT NOT NULL DEFAULT 'connected',
+    paired_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+`);
+
+// device_idは「未接続でも登録可」(設計書6章plantsテーブル定義)のためNULL許容。
+// デバイス側のペアリング解除(DELETE /devices/:id)でplantsの行自体が消えないよう
+// ON DELETE SET NULLにしている(devices側の削除はON DELETE CASCADEにしない)。
 db.exec(`
   CREATE TABLE IF NOT EXISTS plants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     species TEXT,
     image TEXT,
@@ -45,8 +62,8 @@ db.exec(`
 `);
 
 // 通知/アラート画面(設計書5-6・F-05/F-06)向け。
-// devices / notification_settings はデバイス接続機能・通知設定画面に
-// 着手するタイミングで追加する(設計書6章のER図を参照)。
+// notification_settingsは通知設定画面に着手するタイミングで追加する
+// (設計書6章のER図を参照)。devicesは上で追加済み。
 db.exec(`
   CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,5 +73,18 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
 `);
+
+// マイグレーション: 既存のplant_monitoring.dbは`CREATE TABLE IF NOT EXISTS`実行時点で
+// 既にplantsテーブルが存在する(=device_id列を持たない状態)ため、上のCREATE TABLE文
+// だけでは列が追加されない。PRAGMA table_infoで存在確認し、無ければ追加する。
+const plantColumns = db.prepare('PRAGMA table_info(plants)').all();
+const hasDeviceIdColumn = plantColumns.some((col) => col.name === 'device_id');
+if (!hasDeviceIdColumn) {
+  // SQLiteのALTER TABLE ADD COLUMNはREFERENCES制約を書けても外部キー制約自体は
+  // 有効にならない場合があるため、あくまで参照用の列として追加する
+  // (PRAGMA foreign_keys = ONは新規のINSERT/UPDATE時のFK違反チェックには効くが、
+  // 既存テーブルへの列追加時の制約定義には影響しない点に注意)。
+  db.exec('ALTER TABLE plants ADD COLUMN device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL;');
+}
 
 export default db;

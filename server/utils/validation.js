@@ -7,10 +7,13 @@
  * ここでは「保存してよい値かどうか」のみをチェックする。
  *
  * 戻り値: 問題なければnull、問題があればユーザー向けエラーメッセージ(string)。
+ *
+ * デバイスペアリング機能の実装に伴い、plant_idではなくdevice_idを受け取る
+ * 設計書5-4本来の形に戻した(元のplant_id直接指定版は5-4の<details>を参照)。
  */
-export function validateSensorPayload({ plant_id, temperature, humidity, soil, illuminance }) {
-  if (!isPositiveInteger(plant_id)) {
-    return 'plant_id は正の整数で指定してください';
+export function validateSensorPayload({ device_id, temperature, humidity, soil, illuminance }) {
+  if (!isPositiveInteger(device_id)) {
+    return 'device_id は正の整数で指定してください';
   }
 
   // soilは状態判定(5-7)に直結するため必須・レンジ検証ともに厳密にする。
@@ -30,6 +33,28 @@ export function validateSensorPayload({ plant_id, temperature, humidity, soil, i
   }
 
   return null;
+}
+
+/**
+ * POST /devices/pair 用のバリデーション(設計書5-3)。
+ *
+ * device_name: 空でない文字列(必須)
+ * mac_address: "AA:BB:CC:DD:EE:FF"形式の文字列(必須)
+ *
+ * 戻り値: 問題なければnull、問題があればユーザー向けエラーメッセージ(string)。
+ */
+export function validateDevicePairPayload({ device_name, mac_address }) {
+  if (typeof device_name !== 'string' || device_name.trim() === '') {
+    return 'device_name は空でない文字列で指定してください';
+  }
+  if (typeof mac_address !== 'string' || !isMacAddress(mac_address)) {
+    return 'mac_address は "AA:BB:CC:DD:EE:FF" 形式の文字列で指定してください';
+  }
+  return null;
+}
+
+function isMacAddress(value) {
+  return /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(value);
 }
 
 function isPositiveInteger(value) {
