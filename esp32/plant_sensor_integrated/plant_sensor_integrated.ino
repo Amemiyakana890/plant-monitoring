@@ -37,7 +37,7 @@ const char* SENSOR_ENDPOINT = "/api/sensor";
 // device_id起点(設計書5-4)に戻した。事前にPOST /devices/pairで
 // このデバイスを登録し、払い出されたidをここに設定する
 // (登録したデバイスは別途PATCH /plants/:idで植物と紐付けておくこと)。
-const int DEVICE_ID = 3;
+const int DEVICE_ID = 1;
 
 // ---- 土壌水分センサー(M5Stack Unit Earth, U019, 抵抗式) ----
 // 当初はATOM PortABC拡張ベースのPort B経由(GPIO33)で接続していたが、
