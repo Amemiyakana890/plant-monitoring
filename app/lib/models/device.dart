@@ -22,6 +22,20 @@ class Device {
 
   bool get isConnected => status == 'connected';
 
+  /// [DummyPlantRepository]がサーバー側の「再アクティブ化」ロジック
+  /// (devicesController.js参照)と同じ挙動をメモリ内で再現するために使う。
+  Device copyWith({String? deviceName, String? status, String? pairedAt}) {
+    return Device(
+      id: id,
+      deviceName: deviceName ?? this.deviceName,
+      macAddress: macAddress,
+      firmwareVersion: firmwareVersion,
+      batteryLevel: batteryLevel,
+      status: status ?? this.status,
+      pairedAt: pairedAt ?? this.pairedAt,
+    );
+  }
+
   factory Device.fromJson(Map<String, dynamic> json) {
     return Device(
       id: json['id'] as int,

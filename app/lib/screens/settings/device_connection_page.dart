@@ -84,11 +84,15 @@ class _DeviceConnectionPageState extends State<DeviceConnectionPage> {
     );
 
     if (!mounted) return;
+    // pairAndLinkDevice成功後は、紐付いたdevice_id(=ESP32のDEVICE_ID定数と
+    // 一致させるべき値)を確認できるよう、成功メッセージに含めておく。
+    final linkedId = store.plant?.deviceId;
+    final successMessage = linkedId != null
+        ? 'デバイスを登録しました(ID: $linkedId)。ESP32の DEVICE_ID もこの値に合わせてください'
+        : 'デバイスを登録しました';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          success ? 'デバイスを登録しました' : (store.pairErrorMessage ?? '登録に失敗しました'),
-        ),
+        content: Text(success ? successMessage : (store.pairErrorMessage ?? '登録に失敗しました')),
       ),
     );
   }
@@ -173,7 +177,9 @@ class _DeviceConnectionPageState extends State<DeviceConnectionPage> {
                         child: ListTile(
                           leading: const Icon(Icons.wifi),
                           title: Text(
-                            device.deviceName,
+                            // ESP32のDEVICE_ID定数と見比べやすいよう、
+                            // デバイス名の横にIDを併記する。
+                            '${device.deviceName} (ID: ${device.id})',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

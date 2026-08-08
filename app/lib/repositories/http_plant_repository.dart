@@ -148,23 +148,11 @@ class HttpPlantRepository implements PlantRepository {
       body: jsonEncode({'device_name': deviceName, 'mac_address': macAddress}),
     );
 
-    // 409 DEVICE_ALREADY_PAIRED: 同じMACアドレスのデバイスが既に登録済み
-    // (例: 以前の試行でペアリング自体は成功していたが、その後の植物への
-    // 紐付け(updatePlant)が失敗して見かけ上「失敗」に見えていたケース等)。
-    // 新規作成はできないので、既存のデバイスを取得して代わりに返す。
-    // これにより同じMACアドレスで再実行すれば正常に紐付けまで進められる。
-    if (res.statusCode == 409) {
-      final existingDevices = await fetchDevices();
-      final normalized = macAddress.toUpperCase();
-      for (final device in existingDevices) {
-        if (device.macAddress.toUpperCase() == normalized) {
-          return device;
-        }
-      }
-      // 409だが一覧に見当たらない(タイミングのずれ等)場合は、
-      // 元のエラーをそのまま伝える。
-    }
-
+    // サーバー側(2026-08-07以降)は、同じmac_addressのデバイスが既に存在する
+    // 場合はエラーにせず、既存の行を再アクティブ化して200 OKで返す仕様に
+    // なっている(devicesController.js参照)。そのため201/200どちらでも
+    // 同じように扱えば良く、以前あった「409を捕まえて既存デバイスを
+    // 探しにいく」フォールバックは不要になった。
     _ensureOk(res, 'POST /devices/pair');
     return Device.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }

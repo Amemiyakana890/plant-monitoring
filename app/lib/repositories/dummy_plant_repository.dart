@@ -181,14 +181,22 @@ class DummyPlantRepository implements PlantRepository {
     required String macAddress,
   }) async {
     await _simulateNetwork();
-    // HttpPlantRepositoryと挙動を合わせ、同じMACアドレスなら既存デバイスを
-    // 再利用する(実サーバーの409 DEVICE_ALREADY_PAIRED時のフォールバックと同じ考え方)。
-    final normalized = macAddress.toUpperCase();
-    for (final device in _devices) {
-      if (device.macAddress.toUpperCase() == normalized) {
-        return device;
-      }
+    // サーバー側(devicesController.js、2026-08-07以降)と挙動を合わせ、
+    // 同じMACアドレスが既にあれば新規作成せずそのidのまま再アクティブ化する
+    // (解除→再登録のたびにidが変わってしまう問題への対応)。
+    final index = _devices.indexWhere(
+      (d) => d.macAddress.toUpperCase() == macAddress.toUpperCase(),
+    );
+    if (index != -1) {
+      final reactivated = _devices[index].copyWith(
+        deviceName: deviceName,
+        status: 'connected',
+        pairedAt: DateTime.now().toUtc().toIso8601String(),
+      );
+      _devices[index] = reactivated;
+      return reactivated;
     }
+
     final device = Device(
       id: _nextDeviceId++,
       deviceName: deviceName,
@@ -205,8 +213,12 @@ class DummyPlantRepository implements PlantRepository {
   @override
   Future<void> unpairDevice(int id) async {
     await _simulateNetwork();
-    _devices.removeWhere((d) => d.id == id);
-    // 実サーバーのON DELETE SET NULL相当の挙動を再現する。
+    // サーバー同様、行自体は削除せず「未接続」に戻すだけにする
+    // (解除→再登録でidが変わらないようにするため)。
+    final index = _devices.indexWhere((d) => d.id == id);
+    if (index != -1) {
+      _devices[index] = _devices[index].copyWith(status: 'disconnected');
+    }
     if (_plant.deviceId == id) {
       _plant = _plant.copyWith(clearDeviceId: true);
     }

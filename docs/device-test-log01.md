@@ -104,3 +104,54 @@ README進捗の「デバイスペアリング機能の実装」のうち、実�
   `device_connection_page.dart`・`device_info_page.dart`をハードコード値からAPI接続に切り替える
 - ペアリング完了後、アプリ側から`PATCH /plants/:id`で`device_id`を設定するフローをUIに組み込む
   (現状はcurl等での手動設定を想定)
+
+---
+
+## 2026-08-07: 実機テスト中に判明した不具合の修正 + ペアリング解除の仕様変更
+
+### 実機テストで判明した不具合
+
+Flutterアプリからの実際のペアリング操作を通して、以下の不具合が見つかり修正した。
+
+1. **409重複時にエラーで止まる**: 以前のペアリング試行で植物への紐付け(PATCH /plants/:id)
+   が失敗しても、`POST /devices/pair`自体は既に成功しデバイス行が作成されていたため、
+   同じMACアドレスで再試行すると409 DEVICE_ALREADY_PAIREDでエラーになり、
+   ユーザーからは「デバイスが見えないのに登録できない」状態に見えていた。
+2. **`name`/`species`にnullを明示的に送るとPATCHが400になる**: サーバー側のバリデーションが
+   `!== undefined`だけを見ており、JSONで`"name": null`と明示的に送られたケース
+   (アプリがdevice_idだけ更新したい時に発生)を弾いてしまっていた。
+3. **ペアリング解除→再ペアリングのたびにdevice_idが変わる**: `DELETE /devices/:id`が
+   デバイス行を完全に削除する実装だったため、同じ実機で再ペアリングすると
+   AUTOINCREMENTで新しい`id`が振られ、ESP32側の`DEVICE_ID`定数をそのたびに
+   書き換えて再書き込みする必要があった。
+
+### 対応
+
+- (1)(2)は`server/controllers/plantsController.js`・`server/repositories`側の
+  バリデーション/フォールバック処理を修正して解消。
+- (3)は仕様そのものを変更し、`DELETE /devices/:id`(ペアリング解除)を
+  「デバイス行の削除」から「植物との紐付け解除 + status を disconnected に戻すだけ」に変更。
+  あわせて`POST /devices/pair`も、同じ`mac_address`が既に存在する場合はエラーにせず
+  既存の行を再アクティブ化する(`id`は変わらない)仕様にした。
+  これにより、実機を解除→再接続してもESP32側の`DEVICE_ID`を書き換える必要がなくなった。
+- アプリ側(デバイス接続画面・デバイス情報画面)に、デバイスIDそのものを表示するよう追加し、
+  ESP32の`DEVICE_ID`定数と見比べやすくした。
+
+### 動作確認(curl)
+
+```
+1. POST /plants                     → plant id=1
+2. POST /devices/pair (新規)         → device id=1, status=connected
+3. PATCH /plants/1 {device_id:1}    → plant.device_id=1
+4. DELETE /devices/1                → 204(行は残る)
+5. GET /plants/1                    → device_id=null に戻っている
+6. GET /devices/1                   → status=disconnected(行自体は存在)
+7. POST /devices/pair (同じmac)      → 200 OK、id=1のまま status=connected
+8. PATCH /plants/1 {device_id:1}    → plant.device_id=1(再紐付け成功)
+```
+
+id=1のまま一連の流れが成立することを確認済み。
+
+### 今後の対応
+
+- 上記以外は前回(2026-08-07デバイスペアリング機能実装時点)の「今後の対応」のまま変更なし。

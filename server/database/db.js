@@ -35,8 +35,10 @@ db.exec(`
 `);
 
 // device_idは「未接続でも登録可」(設計書6章plantsテーブル定義)のためNULL許容。
-// デバイス側のペアリング解除(DELETE /devices/:id)でplantsの行自体が消えないよう
-// ON DELETE SET NULLにしている(devices側の削除はON DELETE CASCADEにしない)。
+// 2026-08-07以降、DELETE /devices/:id(ペアリング解除)はデバイス行自体を
+// 削除しなくなった(plants.device_idをNULLに戻すだけ。devicesController.js
+// 参照)ため、このON DELETE SET NULLは通常のAPI経由では発火しなくなった。
+// ただし将来デバイス行を直接削除する機能を作った場合の保険として残している。
 db.exec(`
   CREATE TABLE IF NOT EXISTS plants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

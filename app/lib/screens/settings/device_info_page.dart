@@ -106,6 +106,11 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.medium),
       children: [
+        // ESP32側の DEVICE_ID 定数と見比べられるよう、先頭にIDを表示する。
+        // ペアリング解除→再登録すると、サーバー側で新しい連番IDが振られ、
+        // ESP32側のDEVICE_IDが古いままだと404で繋がらなくなるため
+        // (device-test-log01.md 2026-08-07参照)、ここで確認できるようにしている。
+        _InfoTile(label: 'デバイスID', value: '${device.id}'),
         _InfoTile(label: 'デバイス名', value: device.deviceName),
         _InfoTile(label: '接続状態', value: device.isConnected ? '接続済み' : '未接続'),
         _InfoTile(
