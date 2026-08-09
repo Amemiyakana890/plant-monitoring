@@ -1,4 +1,4 @@
-// 植物見守り: ENV III(温湿度・気圧) + 土壌水分(U019) + Wi-Fi送信 統合スケッチ
+// 植物見守り: ENV III(温湿度・気圧) + 土壌水分(U019) + 照度(BH1750) + Wi-Fi送信 統合スケッチ
 //
 // 現在esp32/配下に残す唯一のスケッチ。土壌水分センサーの検証用に存在していた
 // soil_moisture_test.ino / soil_moisture_capacitive_test.ino は役目を終えたため、
@@ -7,21 +7,33 @@
 // 土壌水分センサーはM5シリーズでの機材統一を優先し、
 // M5Stack用 土壌水分センサユニット(Unit Earth, U019, 抵抗式)+砂ポケット運用を採用した
 // (docs/device-test-log.md 2026-08-03参照)。
-// 配線はATOM PortABC拡張ベースのPort B経由(GPIO33)からATOM Matrix本体の
-// Groveポート直挿し(GPIO32)に変更している(PortB経由でRAW値が異常に張り付く
-// 現象が発生したため。詳細は追記予定のdevice-test-logエントリを参照)。
 //
-// 照度センサー(U021)は現バージョンでは未接続。
-// ENV III(I2C、拡張ベースPort A)との競合懸念、およびATOM MatrixのI2C使用により
-// ピンに空きがない可能性が高いため、当面はENV III(拡張ベースPort A)+
-// U019(本体Grove直挿し)の2センサー構成で進める。
-// (照度を追加する場合は配線方式の再検討が必要。詳細はdevice-test-log.mdに追記予定)
+// ★配線変更(照度センサー追加に伴うピン再配置、atom_env3_light_test.inoでの検証結果を反映)★
+// 照度センサー(BH1750)をI2Cバス2(Wire1, SDA=GPIO26/SCL=GPIO32)に接続したため、
+// 土壌水分センサー(GPIO32を使用していた)はATOM PortABC拡張ベースのPort B経由
+// (GPIO33)に戻している。
+//
+// ⚠️注意: Port B経由(GPIO33)は、2026-08-04以前に「RAW値が4090前後
+// (ADC最大値付近)に張り付く」異常が発生し、それが原因で本体Grove直挿し
+// (GPIO32)に変更した配線である(docs/device-test-log01.md参照)。原因は
+// 拡張ベースPort B側の接続(コネクタ・過電圧の可能性)に起因すると推測されて
+// おり、GPIO32へ移設したこと自体が対処だったため、今回GPIO33に戻すことで
+// 同じ症状が再発する可能性がある。
+// 実機投入前に必ずCALIBRATION_MODE = trueで実行し、乾いた状態・湿った状態
+// それぞれでRAW値が張り付かず安定して変化することを確認してから
+// SOIL_RAW_DRY / SOIL_RAW_WET を実測値で更新すること。
+// (再発する場合は、拡張ベースを使わずBH1750側のI2Cピンを別GPIOに
+//  変更する配線を再検討する)
+//
+// 照度センサー(U021想定→実際にはBH1750採用)は本バージョンより接続。
+// ENV III(I2C, Wire, Port A: GPIO25/21)とはバスを分離しているため競合しない。
 
 #include <M5Atom.h>
 #include <Wire.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include "M5UnitENV.h"   // ライブラリマネージャで "M5Unit-ENV"（M5Stack製）をインストール
+#include <BH1750.h>      // ライブラリマネージャで "BH1750" をインストール
 
 // ---- Wi-Fi・サーバー設定 ----
 // SSID・パスワード・サーバーIPはGit管理対象外の secrets.h に分離している
@@ -40,39 +52,36 @@ const char* SENSOR_ENDPOINT = "/api/sensor";
 const int DEVICE_ID = 1;
 
 // ---- 土壌水分センサー(M5Stack Unit Earth, U019, 抵抗式) ----
-// 当初はATOM PortABC拡張ベースのPort B経由(GPIO33)で接続していたが、
-// RAW値が4090前後(ADC最大値4095付近)に張り付く現象が発生し、
-// 7/25の検証ログと同様の「過電圧/接触不良」の疑いがあったため、
-// ATOM Matrix本体のGroveポートへの直挿し(GPIO32、ADC1系)に変更した。
-// GPIO32はENV IIIが使うI2Cピン(GPIO25/21)と競合せず、
-// Wi-Fi動作中でも安定して読み取れる。
+// ★2026-08現在: 照度センサー追加のためPort B経由(GPIO33)に戻した(上記の注意を参照)。
 // 砂ポケット運用のため、乾燥時/湿潤時のRAW値は必ず実機・実際の砂で
 // 実測してから SOIL_RAW_DRY / SOIL_RAW_WET を書き換えること。
-// 下記は2026-08-04に本体Grove直挿し(GPIO32)構成で実測した値
-// (乾いた土:3791/3806/3739/3747/3641の平均、加水後の土:2096/2022/1922/2006/2037/2039の平均)。
-// このセンサー・配線の組み合わせでは「乾燥時=高いRAW値、湿潤時=低いRAW値」という、
-// 一般的な想定(乾燥時=低い/湿潤時=高い)とは逆の向きになることが分かった。
-// 式は (raw - DRY) / (WET - DRY) * 100 なので、大小関係が逆でも
-// DRY/WETに実測値を正しく入れれば0〜100%に正常変換される。
-// なお今回の実測は「土」で行っており、実際の運用(砂ポケット)とは
-// 計測対象が異なる点に注意。砂での運用に切り替えた際は再実測が望ましい。
-#define SOIL_PIN 32
-int SOIL_RAW_DRY = 3745;
-int SOIL_RAW_WET = 2020;
+// 下記はGPIO32(本体Grove直挿し)構成時の実測値であり、GPIO33(Port B)に
+// 戻した現構成ではそのまま使えない可能性が高い。再キャリブレーション必須。
+#define SOIL_PIN 33
+int SOIL_RAW_DRY = 3745;  // TODO: Port B(GPIO33)構成で再実測して置き換えること
+int SOIL_RAW_WET = 2020;  // TODO: 同上
 
 // ---- キャリブレーションモード ----
 // true にして書き込むと、Wi-Fi送信は行わずシリアルモニタにRAW値のみを
 // 1秒おきに表示する(旧soil_moisture_test.inoの安定性チェックモード相当)。
-// 乾いた砂・湿った砂それぞれで数値が安定するのを確認し、
-// 上記 SOIL_RAW_DRY / SOIL_RAW_WET を実測値に更新したら、
-// 必ず false に戻してから通常運用すること。
+// 配線変更(Port B/GPIO33への回帰)直後は、必ずこのモードで
+// 「ADC最大値付近に張り付かず、乾湿で値がなめらかに変化するか」を
+// 確認してから false に戻すこと(device-test-log01.mdの再発チェック)。
 const bool CALIBRATION_MODE = false;
 
-// ---- ENV III(I2C, Port A) ----
+// ---- ENV III(I2C バス1, Port A) ----
 #define ENV_SDA 25
 #define ENV_SCL 21
 SHT3X sht30;
 QMP6988 qmp6988;
+
+// ---- 照度センサー BH1750(I2C バス2, Wire1) ----
+// atom_env3_light_test.ino での検証結果を反映(SDA=GPIO26 / SCL=GPIO32)。
+// ENV IIIとは別バス(Wire1)にすることでI2Cアドレス衝突・配線競合を避けている。
+#define LIGHT_SDA 26
+#define LIGHT_SCL 32
+BH1750 lightMeter;
+bool bh1750Ok = false;
 
 // 送信間隔(ms)。実運用ではセンサー突然死や電池消費とのバランスで調整する。
 const unsigned long SEND_INTERVAL = 30000;
@@ -118,7 +127,11 @@ void connectWiFi() {
 
 // センサー値をJSONにしてPOST /sensorへ送信する。
 // ArduinoJsonライブラリを追加せず、項目数が少ないため文字列組み立てで済ませる。
-bool sendSensorData(float temperature, float humidity, float soil) {
+// illuminanceは読み取りに失敗した場合(hasIlluminance=false)、サーバー側の
+// バリデーション(server/utils/validation.js)が任意項目扱いのため、
+// JSONのフィールド自体を省略して送信する(0luxとして誤認識させないため)。
+bool sendSensorData(float temperature, float humidity, float soil,
+                     bool hasIlluminance, float illuminance) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Wi-Fi未接続のため送信をスキップしました");
     return false;
@@ -134,8 +147,11 @@ bool sendSensorData(float temperature, float humidity, float soil) {
       "\"device_id\":" + DEVICE_ID + "," +
       "\"temperature\":" + String(temperature, 1) + "," +
       "\"humidity\":" + String(humidity, 1) + "," +
-      "\"soil\":" + String(soil, 1) +
-      "}";
+      "\"soil\":" + String(soil, 1);
+  if (hasIlluminance) {
+    payload += String(",\"illuminance\":") + String(illuminance, 1);
+  }
+  payload += "}";
 
   int statusCode = http.POST(payload);
   String responseBody = http.getString();
@@ -173,11 +189,27 @@ void setup() {
     Serial.println("SHT30（温湿度センサー）が見つかりません。配線を確認してください。");
   }
 
+  // 照度センサー(BH1750)はENV IIIと別のI2Cバス(Wire1)で初期化する。
+  Wire1.begin(LIGHT_SDA, LIGHT_SCL);
+  Wire1.setClock(100000);
+  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23, &Wire1)) {
+    bh1750Ok = true;
+    Serial.println("BH1750（照度センサー）を検出しました。");
+  } else {
+    Serial.println("BH1750（照度センサー）が見つかりません。配線を確認してください。");
+  }
+
   pinMode(SOIL_PIN, INPUT);
+  // Port B(GPIO33)はESP32のADC2系。Wi-Fi使用中はADC2の精度が不安定になる
+  // ことがある点に注意(GPIO32/ADC1系だった旧配線ではこの制約がなかった)。
+  // CALIBRATION_MODEでの再検証時、Wi-Fi接続前後で値が変わらないかも
+  // 併せて確認すること。
+  analogSetPinAttenuation(SOIL_PIN, ADC_11db);
 
   if (CALIBRATION_MODE) {
     Serial.println("=== 土壌水分センサー(U019) キャリブレーションモード ===");
     Serial.println("乾いた砂・湿った砂でそれぞれRAW値が安定するか確認してください。");
+    Serial.println("(Port B/GPIO33への配線変更後の再検証が必須です)");
     return; // Wi-Fi接続は行わない
   }
 
@@ -214,13 +246,31 @@ void loop() {
 
   float soil = readSoilMoisture();
 
+  bool hasIlluminance = false;
+  float illuminance = 0.0;
+  if (bh1750Ok) {
+    float lux = lightMeter.readLightLevel();
+    if (lux >= 0) {
+      illuminance = lux;
+      hasIlluminance = true;
+    } else {
+      Serial.println("BH1750（照度センサー）の読み取りに失敗しました");
+    }
+  }
+
   Serial.print("Temp=");
   Serial.print(temperature);
   Serial.print("C Humidity=");
   Serial.print(humidity);
   Serial.print("% Soil=");
   Serial.print(soil);
-  Serial.println("%");
+  Serial.print("%");
+  if (hasIlluminance) {
+    Serial.print(" Illuminance=");
+    Serial.print(illuminance);
+    Serial.print("lx");
+  }
+  Serial.println();
 
-  sendSensorData(temperature, humidity, soil);
+  sendSensorData(temperature, humidity, soil, hasIlluminance, illuminance);
 }
