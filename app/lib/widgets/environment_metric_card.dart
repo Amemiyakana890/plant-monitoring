@@ -12,6 +12,12 @@ class EnvironmentMetricCard extends StatelessWidget {
   final Color iconColor;
   final EnvironmentStatus status;
 
+  /// 湿度・照度のように「バッジは日次評価、数値はリアルタイム」という
+  /// 見せ方(docs/status-notification-design.md 3-6章)をしているカードで、
+  /// バッジの下に評価時刻を小さく添えるためのキャプション。
+  /// 温度・土壌水分のようにリアルタイム評価のカードではnull(非表示)にする。
+  final String? statusCaption;
+
   const EnvironmentMetricCard({
     super.key,
     required this.label,
@@ -19,6 +25,7 @@ class EnvironmentMetricCard extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.status,
+    this.statusCaption,
   });
 
   @override
@@ -69,6 +76,15 @@ class EnvironmentMetricCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (statusCaption != null && statusCaption!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                statusCaption!,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.grey,
+                ),
+              ),
+            ],
           ],
         ),
       ),

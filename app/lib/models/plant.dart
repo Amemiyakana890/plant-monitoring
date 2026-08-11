@@ -1,3 +1,5 @@
+import 'environment_level.dart';
+
 /// 植物の状態(サーバー側の判定ロジック(設計書5-7)に対応するコード値)
 enum PlantStatus {
   healthy,
@@ -35,6 +37,34 @@ class Plant {
   final PlantStatus status;
   final String updatedAt;
 
+  // --- 温度・湿度・照度の状態判定(docs/status-notification-design.md) ---
+  // 土壌水分(status)とは別に、サーバー側 utils/plantStatus.js が算出する
+  // 「適正/注意/要ケア」を保持する。ホーム画面の各カードのバッジ表示に使う
+  // (widgets/plant_card.dart 参照)。
+
+  /// 温度はリアルタイム・継続時間ベースで評価されるため、常に値が入っている
+  /// (サーバー側のデフォルトは'healthy')。
+  final EnvironmentLevel tempStatus;
+
+  /// 湿度は1日1回(15:00)の日次評価(docs 3-2章)。
+  /// セットアップ直後などまだ一度も評価されていない場合は[EnvironmentLevel.unknown]。
+  final EnvironmentLevel humidityDailyStatus;
+
+  /// 直近の日次評価時点での24時間平均湿度(%)。未評価ならnull。
+  final double? humidityDailyAvg;
+
+  /// 直近の日次評価が実施された時刻(UTC・ISO8601)。未評価ならnull。
+  final String? humidityEvaluatedAt;
+
+  /// 照度は1日1回(15:00)の日次評価、昼間(6:00〜18:00, JST)平均(docs 3-4章)。
+  final EnvironmentLevel illuminanceDailyStatus;
+
+  /// 直近の日次評価時点での昼間平均照度(lux)。未評価ならnull。
+  final double? illuminanceDailyAvg;
+
+  /// 直近の日次評価が実施された時刻(UTC・ISO8601)。未評価ならnull。
+  final String? illuminanceEvaluatedAt;
+
   const Plant({
     required this.id,
     required this.name,
@@ -46,6 +76,13 @@ class Plant {
     required this.illuminance,
     required this.status,
     required this.updatedAt,
+    this.tempStatus = EnvironmentLevel.healthy,
+    this.humidityDailyStatus = EnvironmentLevel.unknown,
+    this.humidityDailyAvg,
+    this.humidityEvaluatedAt,
+    this.illuminanceDailyStatus = EnvironmentLevel.unknown,
+    this.illuminanceDailyAvg,
+    this.illuminanceEvaluatedAt,
   });
 
   /// 画面表示用に、サーバーのUTC文字列(例: "2026-08-04T01:08:52Z")を
@@ -53,15 +90,36 @@ class Plant {
   /// 通知一覧(notification_page.dart の_formatDateTime)と表記を揃え、
   /// 「2026年8月6日 07:57:32」形式にしている。
   /// パースできない場合は元の文字列をそのまま返す(フォールバック)。
-  String get updatedAtDisplay {
-    if (updatedAt.isEmpty) return '';
-    final parsed = DateTime.tryParse(updatedAt);
-    if (parsed == null) return updatedAt;
+  String get updatedAtDisplay => _formatDateTime(updatedAt, withSeconds: true);
+
+  /// 湿度の日次評価時刻を「8月10日 15:00時点」の形式で返す。
+  /// 未評価(null)の場合は空文字を返す(呼び出し側で「評価準備中」等に出し分ける)。
+  String get humidityEvaluatedAtDisplay =>
+      _formatEvaluatedAt(humidityEvaluatedAt);
+
+  /// 照度の日次評価時刻を「8月10日 15:00時点」の形式で返す。
+  String get illuminanceEvaluatedAtDisplay =>
+      _formatEvaluatedAt(illuminanceEvaluatedAt);
+
+  static String _formatEvaluatedAt(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final formatted = _formatDateTime(iso, withSeconds: false);
+    if (formatted.isEmpty) return '';
+    return '$formatted時点の評価';
+  }
+
+  static String _formatDateTime(String iso, {required bool withSeconds}) {
+    if (iso.isEmpty) return '';
+    final parsed = DateTime.tryParse(iso);
+    if (parsed == null) return iso;
 
     final local = parsed.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${local.year}年${local.month}月${local.day}日 '
-        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+    final datePart = '${local.year}年${local.month}月${local.day}日';
+    final timePart = withSeconds
+        ? '${two(local.hour)}:${two(local.minute)}:${two(local.second)}'
+        : '${two(local.hour)}:${two(local.minute)}';
+    return '$datePart $timePart';
   }
 
   /// [deviceId]は明示的にnullを渡したいケース(ペアリング解除)があるため、
@@ -84,6 +142,13 @@ class Plant {
       illuminance: illuminance,
       status: status,
       updatedAt: updatedAt,
+      tempStatus: tempStatus,
+      humidityDailyStatus: humidityDailyStatus,
+      humidityDailyAvg: humidityDailyAvg,
+      humidityEvaluatedAt: humidityEvaluatedAt,
+      illuminanceDailyStatus: illuminanceDailyStatus,
+      illuminanceDailyAvg: illuminanceDailyAvg,
+      illuminanceEvaluatedAt: illuminanceEvaluatedAt,
     );
   }
 
@@ -108,6 +173,16 @@ class Plant {
       illuminance: (json['illuminance'] as num?)?.toDouble() ?? 0.0,
       status: PlantStatus.fromApi(json['status'] as String?),
       updatedAt: json['updated_at'] as String? ?? '',
+      tempStatus: EnvironmentLevel.fromApi(json['temp_status'] as String?),
+      humidityDailyStatus:
+          EnvironmentLevel.fromApi(json['humidity_daily_status'] as String?),
+      humidityDailyAvg: (json['humidity_daily_avg'] as num?)?.toDouble(),
+      humidityEvaluatedAt: json['humidity_evaluated_at'] as String?,
+      illuminanceDailyStatus: EnvironmentLevel.fromApi(
+        json['illuminance_daily_status'] as String?,
+      ),
+      illuminanceDailyAvg: (json['illuminance_daily_avg'] as num?)?.toDouble(),
+      illuminanceEvaluatedAt: json['illuminance_evaluated_at'] as String?,
     );
   }
 

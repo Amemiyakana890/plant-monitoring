@@ -88,13 +88,31 @@ const unsigned long SEND_INTERVAL = 30000;
 unsigned long lastSendMillis = 0;
 
 // LEDマトリクスで送信結果をひと目で確認できるようにする
-// (README/設計書のステータスLED方針: 緑=正常/橙=注意/赤=エラー を流用)
+// (README/設計書のステータスLED方針: 緑=正常/橙=注意/赤=エラー を流用。
+//  ただし赤は「点灯(dry要ケア)」と「点滅(通信エラー)」で意味を分けている。
+//  詳細はblinkError()のコメント参照)
 CRGB dispColor(uint8_t r, uint8_t g, uint8_t b) {
   return (CRGB)((r << 16) | (g << 8) | b);
 }
 void showStatusColor(uint8_t r, uint8_t g, uint8_t b) {
   for (int i = 0; i < 25; i++) {
     M5.dis.drawpix(i, dispColor(r, g, b));
+  }
+}
+
+// 「赤の点灯(土壌水分dry=要ケア、通信自体は正常)」と
+// 「赤の点滅(Wi-Fi未接続・サーバーエラー等の通信トラブル)」を区別するための
+// エラー専用表示。以前は両方とも赤の点灯だったため、「乾燥で赤く光っている
+// だけなのにエラーだと勘違いした」という紛らわしさがあった経緯を踏まえて分離した。
+// delay()でブロッキングするが、エラー通知時のみ・1回あたり3回点滅(計1.8秒)程度なので
+// センサー送信間隔(30秒〜本番10分)に対して影響は無視できる。
+void blinkError() {
+  const int blinkCount = 3;
+  for (int i = 0; i < blinkCount; i++) {
+    showStatusColor(255, 0, 0);
+    delay(300);
+    showStatusColor(0, 0, 0); // 消灯
+    delay(300);
   }
 }
 
@@ -134,6 +152,7 @@ bool sendSensorData(float temperature, float humidity, float soil,
                      bool hasIlluminance, float illuminance) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Wi-Fi未接続のため送信をスキップしました");
+    blinkError();
     return false;
   }
 
@@ -165,7 +184,7 @@ bool sendSensorData(float temperature, float humidity, float soil,
   if (statusCode == 201) {
     // レスポンス例: {"plant_id":1,"status":"healthy"}
     if (responseBody.indexOf("\"dry\"") != -1) {
-      showStatusColor(255, 0, 0);       // 赤: 乾燥(要ケア)
+      showStatusColor(255, 0, 0);       // 赤の点灯: 乾燥(要ケア。通信自体は正常)
     } else if (responseBody.indexOf("\"thirsty\"") != -1) {
       showStatusColor(255, 140, 0);     // 橙: 注意
     } else {
@@ -174,7 +193,9 @@ bool sendSensorData(float temperature, float humidity, float soil,
     return true;
   }
 
-  showStatusColor(255, 0, 0); // 通信エラーも赤で分かるようにする
+  // 通信エラー(サーバー未応答・404・500等)は「赤の点滅」で、
+  // 土壌水分dry(赤の点灯)と見分けられるようにする。
+  blinkError();
   return false;
 }
 

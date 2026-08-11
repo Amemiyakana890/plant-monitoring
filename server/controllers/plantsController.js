@@ -41,6 +41,14 @@ function toPlantResponse(plantRow) {
     soil: latestLog?.soil ?? null,
     illuminance: latestLog?.illuminance ?? null,
     updated_at: latestLog?.created_at ?? null,
+    // 温度・湿度・照度の状態判定・通知ロジック(docs/status-notification-design.md)。
+    // Flutter側は現時点で未対応のため無視されるだけだが、今後ホーム画面に
+    // 反映する際にそのまま使えるようレスポンスには含めておく。
+    temp_status: plantRow.temp_status ?? null,
+    humidity_daily_status: plantRow.humidity_daily_status ?? null,
+    humidity_daily_avg: plantRow.humidity_daily_avg ?? null,
+    illuminance_daily_status: plantRow.illuminance_daily_status ?? null,
+    illuminance_daily_avg: plantRow.illuminance_daily_avg ?? null,
   };
 }
 

@@ -27,14 +27,26 @@ class PlantCard extends StatelessWidget {
           valueText: '${plant.temperature}℃',
           icon: Icons.thermostat,
           iconColor: Colors.redAccent,
-          status: temperatureStatus(plant.temperature),
+          // 温度はリアルタイム・継続時間ベースのサーバー判定を使う
+          // (docs/status-notification-design.md 3-1章)。
+          status: environmentStatusFromLevel(
+            plant.tempStatus,
+            ratio: temperatureRatio(plant.temperature),
+          ),
         ),
         EnvironmentMetricCard(
           label: '湿度',
           valueText: '${plant.humidity}%',
           icon: Icons.water_drop,
           iconColor: Colors.blueAccent,
-          status: humidityStatus(plant.humidity),
+          // 湿度は1日1回(15:00)の日次評価(24時間平均)を使う「日次レポート型」
+          // (docs 3-2, 3-6章)。数値はリアルタイム値のまま、バッジだけ
+          // 直近の日次評価結果を表示し、評価時刻をキャプションで補足する。
+          status: environmentStatusFromLevel(
+            plant.humidityDailyStatus,
+            ratio: humidityRatio(plant.humidity),
+          ),
+          statusCaption: plant.humidityEvaluatedAtDisplay,
         ),
         EnvironmentMetricCard(
           label: '土壌水分',
@@ -48,7 +60,12 @@ class PlantCard extends StatelessWidget {
           valueText: '${plant.illuminance.toStringAsFixed(0)} lux',
           icon: Icons.wb_sunny,
           iconColor: Colors.orangeAccent,
-          status: illuminanceStatus(plant.illuminance),
+          // 照度も湿度と同じく日次レポート型(昼間6:00〜18:00の平均、docs 3-4, 3-6章)。
+          status: environmentStatusFromLevel(
+            plant.illuminanceDailyStatus,
+            ratio: illuminanceRatio(plant.illuminance),
+          ),
+          statusCaption: plant.illuminanceEvaluatedAtDisplay,
         ),
       ],
     );

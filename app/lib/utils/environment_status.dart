@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../models/environment_level.dart';
 
 /// 環境データ1項目分の表示状態(進捗バーの割合・ラベル・色)。
 class EnvironmentStatus {
@@ -25,40 +26,47 @@ double _clampRatio(double value, double min, double max) {
   return ((value - min) / (max - min)).clamp(0.0, 1.0);
 }
 
-/// 温度の状態を判定する。
-///
-/// TODO: 適温範囲(18〜30℃)は`plant_info_page.dart`のケアポイント文言
-/// (「適温は18〜30℃、霜に弱いです」)に合わせた暫定値。
-/// 設計書5-7の閾値ロジックは土壌水分のみを定義しているため、
-/// 植物種ごとの適温マスタ等ができた段階で見直すこと。
-EnvironmentStatus temperatureStatus(double temperature) {
-  const min = 18.0;
-  const max = 30.0;
-  final ratio = _clampRatio(temperature, 0, 45);
-  final ok = temperature >= min && temperature <= max;
-  return EnvironmentStatus(
-    ratio: ratio,
-    label: ok ? '適正' : '注意',
-    color: ok ? AppColors.success : AppColors.warning,
-  );
+/// サーバー側(docs/status-notification-design.md)が算出した
+/// [EnvironmentLevel]を、表示用のラベル・色に変換する。
+/// プログレスバーの[ratio]だけは実測値から別途計算して渡す
+/// (バッジは日次評価、数値・バーはリアルタイム値、という3-6章の使い分けに対応)。
+EnvironmentStatus environmentStatusFromLevel(
+  EnvironmentLevel level, {
+  required double ratio,
+}) {
+  switch (level) {
+    case EnvironmentLevel.healthy:
+      return EnvironmentStatus(ratio: ratio, label: '適正', color: AppColors.success);
+    case EnvironmentLevel.caution:
+      return EnvironmentStatus(ratio: ratio, label: '注意', color: AppColors.warning);
+    case EnvironmentLevel.needsCare:
+      return EnvironmentStatus(ratio: ratio, label: '要ケア', color: AppColors.error);
+    case EnvironmentLevel.unknown:
+      // 湿度・照度は1日1回(15:00)の評価のため、セットアップ直後などまだ
+      // 一度も評価されていない場合がある(docs 3-6章)。誤って「適正」と
+      // 見せてしまわないよう、グレー・ニュートラルな表示にする。
+      return EnvironmentStatus(
+        ratio: ratio,
+        label: '評価準備中',
+        color: Colors.grey,
+      );
+  }
 }
 
-/// 湿度の状態を判定する。
+/// 温度のプログレスバー用ratioを計算する(0〜45℃の範囲で正規化)。
 ///
-/// TODO: 適正範囲(40〜70%)は一般的な観葉植物向けの暫定値。
-/// 設計書側に湿度の閾値定義がまだないため、正式な仕様が決まったら
-/// system-design.md 5-7に合わせて更新すること。
-EnvironmentStatus humidityStatus(double humidity) {
-  const min = 40.0;
-  const max = 70.0;
-  final ratio = _clampRatio(humidity, 0, 100);
-  final ok = humidity >= min && humidity <= max;
-  return EnvironmentStatus(
-    ratio: ratio,
-    label: ok ? '適正' : '注意',
-    color: ok ? AppColors.success : AppColors.warning,
-  );
-}
+/// ラベル・色(適正/注意/要ケア)は、以前はここで暫定閾値(18〜30℃)を
+/// 使ってクライアント側だけで判定していたが、サーバー側で継続時間まで
+/// 考慮した判定(docs/status-notification-design.md 3-1章)が入ったため、
+/// [Plant.tempStatus] + [environmentStatusFromLevel] を使うように変更した。
+/// このratioだけはプログレスバーの見た目のためクライアント側に残している。
+double temperatureRatio(double temperature) => _clampRatio(temperature, 0, 45);
+
+/// 湿度のプログレスバー用ratioを計算する(0〜100%の範囲で正規化)。
+///
+/// ラベル・色は[Plant.humidityDailyStatus](サーバー側の24時間平均による
+/// 日次評価、docs 3-2章)を使う。詳細はtemperatureRatioのコメントと同様。
+double humidityRatio(double humidity) => _clampRatio(humidity, 0, 100);
 
 /// 土壌水分の状態を判定する。
 ///
@@ -79,19 +87,8 @@ EnvironmentStatus soilMoistureStatus(double soil) {
   return EnvironmentStatus(ratio: ratio, label: '要注意', color: AppColors.error);
 }
 
-/// 照度の状態を判定する。
+/// 照度のプログレスバー用ratioを計算する(0〜10,000luxの範囲で正規化)。
 ///
-/// TODO: 適正範囲(500〜10,000lux)は室内の観葉植物向けの暫定値。
-/// 光量センサー(U021)は本体未接続のため(README進捗欄参照)、
-/// 実測データが揃った時点で範囲を見直すこと。
-EnvironmentStatus illuminanceStatus(double illuminance) {
-  const min = 500.0;
-  const max = 10000.0;
-  final ratio = _clampRatio(illuminance, 0, 10000);
-  final ok = illuminance >= min && illuminance <= max;
-  return EnvironmentStatus(
-    ratio: ratio,
-    label: ok ? '適正' : '注意',
-    color: ok ? AppColors.success : AppColors.warning,
-  );
-}
+/// ラベル・色は[Plant.illuminanceDailyStatus](サーバー側の昼間平均による
+/// 日次評価、docs 3-4章)を使う。詳細はtemperatureRatioのコメントと同様。
+double illuminanceRatio(double illuminance) => _clampRatio(illuminance, 0, 10000);

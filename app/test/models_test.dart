@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:plant_monitoring_app/models/environment_level.dart';
 import 'package:plant_monitoring_app/models/environment_log.dart';
 import 'package:plant_monitoring_app/models/plant.dart';
 import 'package:plant_monitoring_app/models/plant_notification.dart';
@@ -62,6 +63,64 @@ void main() {
       expect(plant.illuminance, 0.0);
       expect(plant.species, '');
       expect(plant.updatedAt, '');
+
+      // 温度・湿度・照度の状態判定フィールド(docs/status-notification-design.md)も
+      // 未設定時にnullを許容し、EnvironmentLevel.unknown/nullへフォールバックする。
+      expect(plant.tempStatus, EnvironmentLevel.healthy); // temp_status未指定時のデフォルト
+      expect(plant.humidityDailyStatus, EnvironmentLevel.unknown);
+      expect(plant.humidityDailyAvg, null);
+      expect(plant.illuminanceDailyStatus, EnvironmentLevel.unknown);
+      expect(plant.illuminanceDailyAvg, null);
+    });
+
+    // server/controllers/plantsController.js が返す温度・湿度・照度の
+    // 状態判定フィールド(docs/status-notification-design.md)を正しく変換できるか確認する。
+    test('温度・湿度・照度の状態判定フィールドを変換できる', () {
+      final plant = Plant.fromJson({
+        'id': 3,
+        'name': 'モンステラ',
+        'species': '観葉植物',
+        'status': 'healthy',
+        'temperature': 36.0,
+        'humidity': 35.0,
+        'soil': 50,
+        'illuminance': 300,
+        'updated_at': '2026-08-11T02:00:00Z',
+        'temp_status': 'needs_care',
+        'humidity_daily_status': 'needs_care',
+        'humidity_daily_avg': 35.5,
+        'humidity_evaluated_at': '2026-08-11T06:00:00Z',
+        'illuminance_daily_status': 'caution',
+        'illuminance_daily_avg': 800.2,
+        'illuminance_evaluated_at': '2026-08-11T06:00:00Z',
+      });
+
+      expect(plant.tempStatus, EnvironmentLevel.needsCare);
+      expect(plant.humidityDailyStatus, EnvironmentLevel.needsCare);
+      expect(plant.humidityDailyAvg, 35.5);
+      expect(plant.illuminanceDailyStatus, EnvironmentLevel.caution);
+      expect(plant.illuminanceDailyAvg, 800.2);
+      // 評価時刻はローカル時刻表記+「時点の評価」のサフィックスが付く(3-6章のキャプション表示用)。
+      expect(plant.humidityEvaluatedAtDisplay, endsWith('時点の評価'));
+    });
+
+    test('日次評価が未実施(evaluated_atがnull)の場合はキャプションが空文字になる', () {
+      final plant = Plant.fromJson({
+        'id': 4,
+        'name': 'モンステラ',
+        'species': '観葉植物',
+        'status': 'healthy',
+        'temperature': 24,
+        'humidity': 60,
+        'soil': 50,
+        'illuminance': 3000,
+        'updated_at': '2026-08-11T02:00:00Z',
+        'humidity_evaluated_at': null,
+        'illuminance_evaluated_at': null,
+      });
+
+      expect(plant.humidityEvaluatedAtDisplay, '');
+      expect(plant.illuminanceEvaluatedAtDisplay, '');
     });
   });
 

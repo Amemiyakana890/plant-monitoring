@@ -89,4 +89,30 @@ if (!hasDeviceIdColumn) {
   db.exec('ALTER TABLE plants ADD COLUMN device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL;');
 }
 
+// マイグレーション: 温度・湿度・照度の状態判定・通知ロジック用カラム
+// (docs/status-notification-design.md 4章)。
+// temp_status / temp_out_of_range_since : 温度はリアルタイム評価(3-1章)。
+//   caution_zone(適正範囲の外)に入り続けている開始時刻をtemp_out_of_range_sinceに
+//   記録し、経過時間からtemp_statusを算出する(utils/plantStatus.js参照)。
+// humidity_daily_* / illuminance_daily_* : 湿度・照度は1日1回・15:00に評価する
+//   「日次レポート型」(3-2, 3-4章)。評価結果と評価時刻を保存しておき、
+//   次にPOST /sensorを受信した際に「今日はまだ評価していないか」を判定する。
+const newPlantColumns = [
+  { name: 'temp_status', ddl: "temp_status TEXT NOT NULL DEFAULT 'healthy'" },
+  { name: 'temp_out_of_range_since', ddl: 'temp_out_of_range_since TEXT' },
+  { name: 'humidity_daily_status', ddl: 'humidity_daily_status TEXT' },
+  { name: 'humidity_daily_avg', ddl: 'humidity_daily_avg REAL' },
+  { name: 'humidity_evaluated_at', ddl: 'humidity_evaluated_at TEXT' },
+  { name: 'illuminance_daily_status', ddl: 'illuminance_daily_status TEXT' },
+  { name: 'illuminance_daily_avg', ddl: 'illuminance_daily_avg REAL' },
+  { name: 'illuminance_evaluated_at', ddl: 'illuminance_evaluated_at TEXT' },
+];
+const currentPlantColumns = db.prepare('PRAGMA table_info(plants)').all();
+for (const column of newPlantColumns) {
+  const exists = currentPlantColumns.some((col) => col.name === column.name);
+  if (!exists) {
+    db.exec(`ALTER TABLE plants ADD COLUMN ${column.ddl};`);
+  }
+}
+
 export default db;
