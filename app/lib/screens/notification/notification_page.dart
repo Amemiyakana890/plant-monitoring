@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/plant_notification.dart';
 import '../../state/plant_store_scope.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimensions.dart';
@@ -35,12 +36,40 @@ class _NotificationPageState extends State<NotificationPage> {
     });
   }
 
-  IconData _iconFor(String message) {
+  /// 通知のアイコンを決める。
+  ///
+  /// category(server側で明示的に付与、docs参照)があればそれを優先する。
+  /// 移行前に作成された既存の通知行はcategoryがNULLのままDBに残っている
+  /// ため、その場合のみ従来通りmessageのキーワードからの推測にフォール
+  /// バックする(後方互換用。新規の通知は基本的にcategoryを持つはず)。
+  ///
+  /// 経緯: 以前はキーワード判定のみだったが、土壌水分の「やや乾燥」メッセージ
+  /// (「少し乾いてきました。水やりのタイミングを確認してください」)には
+  /// 「水分」という文字列が含まれておらず、汎用アイコン(ベルのみ)になって
+  /// しまうバグがあった。文言に依存しない判定にするため、サーバー側の
+  /// categoryを優先する形に直した。
+  IconData _iconFor(PlantNotification notification) {
+    switch (notification.category) {
+      case 'soil':
+        return Icons.eco;
+      case 'temperature':
+        return Icons.thermostat;
+      case 'humidity':
+        return Icons.water_drop;
+      case 'illuminance':
+        return Icons.wb_sunny;
+    }
+
+    // ここから下は旧データ向けのフォールバック(キーワード推測)。
+    final message = notification.message;
     if (message.contains('水分') || message.contains('湿度')) {
       return Icons.water_drop;
     }
     if (message.contains('温')) {
       return Icons.thermostat;
+    }
+    if (message.contains('日照') || message.contains('lux')) {
+      return Icons.wb_sunny;
     }
     return Icons.notifications;
   }
@@ -126,7 +155,7 @@ class _NotificationPageState extends State<NotificationPage> {
           Card(
             child: ListTile(
               leading: Icon(
-                _iconFor(notification.message),
+                _iconFor(notification),
                 color: notification.isRead ? Colors.grey : AppColors.warning,
               ),
               title: Text(notification.message),

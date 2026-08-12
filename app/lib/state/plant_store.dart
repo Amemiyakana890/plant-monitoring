@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/device.dart';
 import '../models/environment_log.dart';
+import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
 import '../repositories/plant_repository.dart';
@@ -25,12 +26,15 @@ class PlantStore extends ChangeNotifier {
   List<EnvironmentLog> history = [];
   List<PlantNotification> notifications = [];
   List<Device> devices = [];
+  NotificationSettings? notificationSettings;
 
   bool isLoadingPlant = false;
   bool isLoadingHistory = false;
   bool isLoadingNotifications = false;
   bool isLoadingDevices = false;
   bool isPairing = false;
+  bool isLoadingNotificationSettings = false;
+  bool isSavingNotificationSettings = false;
 
   // データの種類ごとにエラーを分ける。1つの errorMessage にまとめると、
   // 例えば履歴取得の失敗が通知一覧のエラー表示を上書きしてしまうため。
@@ -39,6 +43,7 @@ class PlantStore extends ChangeNotifier {
   String? notificationsErrorMessage;
   String? devicesErrorMessage;
   String? pairErrorMessage;
+  String? notificationSettingsErrorMessage;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
@@ -245,6 +250,48 @@ class PlantStore extends ChangeNotifier {
       pairErrorMessage = 'ペアリング解除に失敗しました: $e';
       notifyListeners();
       return false;
+    }
+  }
+
+  // ---- 通知設定(設計書5-1)。サイレントタイム・カテゴリ別アラートのON/OFF ----
+
+  Future<void> loadNotificationSettings() async {
+    isLoadingNotificationSettings = true;
+    notificationSettingsErrorMessage = null;
+    notifyListeners();
+    try {
+      notificationSettings = await _repository.fetchNotificationSettings();
+    } catch (_) {
+      notificationSettingsErrorMessage = '通知設定を取得できませんでした';
+    } finally {
+      isLoadingNotificationSettings = false;
+      notifyListeners();
+    }
+  }
+
+  /// トグルの切り替え・サイレントタイムの時刻変更で共通して使う。
+  /// 楽観的に画面へ反映し、失敗したら元の設定に戻す
+  /// (updatePlant()と同じ考え方。UIの反応を待たせたくないため)。
+  /// 成功時はtrue、失敗時はfalseを返す。
+  Future<bool> updateNotificationSettings(NotificationSettings updated) async {
+    final previous = notificationSettings;
+    notificationSettings = updated;
+    isSavingNotificationSettings = true;
+    notificationSettingsErrorMessage = null;
+    notifyListeners();
+
+    try {
+      notificationSettings = await _repository.updateNotificationSettings(
+        updated,
+      );
+      return true;
+    } catch (_) {
+      notificationSettings = previous;
+      notificationSettingsErrorMessage = '通知設定を保存できませんでした';
+      return false;
+    } finally {
+      isSavingNotificationSettings = false;
+      notifyListeners();
     }
   }
 }

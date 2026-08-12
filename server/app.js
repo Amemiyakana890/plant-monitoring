@@ -14,6 +14,7 @@ import sensorRouter from './routes/sensor.js';
 import historyRouter from './routes/history.js';
 import notificationsRouter from './routes/notifications.js';
 import devicesRouter from './routes/devices.js';
+import settingsRouter from './routes/settings.js';
 import { sendError } from './utils/errors.js';
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api/sensor', sensorRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/devices', devicesRouter);
+app.use('/api/settings', settingsRouter);
 
 // 未定義のルート
 app.use((req, res) => {

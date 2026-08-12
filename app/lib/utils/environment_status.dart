@@ -8,7 +8,7 @@ class EnvironmentStatus {
   /// プログレスバー表示用に0.0〜1.0へ正規化した値。
   final double ratio;
 
-  /// 状態タグに表示する短いラベル(例:「適正」「やや注意」)。
+  /// 状態タグに表示する短いラベル(例:「適正」「注意」「要ケア」)。
   final String label;
 
   /// プログレスバー・状態タグの色。
@@ -71,20 +71,21 @@ double humidityRatio(double humidity) => _clampRatio(humidity, 0, 100);
 /// 土壌水分の状態を判定する。
 ///
 /// 設計書5-7の`plants.status`判定ロジック(healthy/thirsty/dry)と
-/// 同じ閾値(40 / 20)を使用し、表示ラベルのみ画面用に短くしている。
+/// 同じ閾値(40 / 20)を使用する。
+///
+/// ラベルは以前「適正/やや注意/要注意」という土壌水分だけ独自の言い回しに
+/// なっていたが、同じホーム画面に並ぶ温度・湿度・照度のバッジ
+/// (environmentStatusFromLevel: 適正/注意/要ケア)と表記が揃っていなかった
+/// ため、統一した(見た目の一貫性の問題で、判定の閾値自体は変えていない)。
 EnvironmentStatus soilMoistureStatus(double soil) {
   final ratio = _clampRatio(soil, 0, 100);
   if (soil >= 40) {
     return EnvironmentStatus(ratio: ratio, label: '適正', color: AppColors.success);
   }
   if (soil >= 20) {
-    return EnvironmentStatus(
-      ratio: ratio,
-      label: 'やや注意',
-      color: AppColors.warning,
-    );
+    return EnvironmentStatus(ratio: ratio, label: '注意', color: AppColors.warning);
   }
-  return EnvironmentStatus(ratio: ratio, label: '要注意', color: AppColors.error);
+  return EnvironmentStatus(ratio: ratio, label: '要ケア', color: AppColors.error);
 }
 
 /// 照度のプログレスバー用ratioを計算する(0〜10,000luxの範囲で正規化)。

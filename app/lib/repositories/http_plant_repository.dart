@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/device.dart';
 import '../models/environment_log.dart';
+import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
 import 'plant_repository.dart';
@@ -162,6 +163,34 @@ class HttpPlantRepository implements PlantRepository {
     final uri = Uri.parse('$baseUrl/devices/$id');
     final res = await http.delete(uri);
     _ensureOk(res, 'DELETE /devices/$id');
+  }
+
+  // ---- 設計書5-1 通知設定API ----
+
+  @override
+  Future<NotificationSettings> fetchNotificationSettings() async {
+    final uri = Uri.parse('$baseUrl/settings/notification');
+    final res = await http.get(uri);
+    _ensureOk(res, 'GET /settings/notification');
+    return NotificationSettings.fromJson(
+      jsonDecode(res.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<NotificationSettings> updateNotificationSettings(
+    NotificationSettings settings,
+  ) async {
+    final uri = Uri.parse('$baseUrl/settings/notification');
+    final res = await http.put(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(settings.toJson()),
+    );
+    _ensureOk(res, 'PUT /settings/notification');
+    return NotificationSettings.fromJson(
+      jsonDecode(res.body) as Map<String, dynamic>,
+    );
   }
 
   void _ensureOk(http.Response res, String label) {

@@ -1,5 +1,6 @@
 import '../models/device.dart';
 import '../models/environment_log.dart';
+import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
 
@@ -40,4 +41,12 @@ abstract class PlantRepository {
 
   /// DELETE /devices/:id 相当(設計書5-3「デバイスのペアリング解除」)
   Future<void> unpairDevice(int id);
+
+  /// GET /settings/notification 相当(設計書5-1)。
+  Future<NotificationSettings> fetchNotificationSettings();
+
+  /// PUT /settings/notification 相当(設計書5-1)。
+  Future<NotificationSettings> updateNotificationSettings(
+    NotificationSettings settings,
+  );
 }

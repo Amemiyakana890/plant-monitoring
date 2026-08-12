@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plant_monitoring_app/models/device.dart';
 import 'package:plant_monitoring_app/models/environment_log.dart';
+import 'package:plant_monitoring_app/models/notification_settings.dart';
 import 'package:plant_monitoring_app/models/plant.dart';
 import 'package:plant_monitoring_app/models/plant_notification.dart';
 import 'package:plant_monitoring_app/repositories/plant_repository.dart';
@@ -97,6 +98,39 @@ class FakePlantRepository implements PlantRepository {
 
   @override
   Future<void> unpairDevice(int id) async {}
+
+  // ---- 通知設定API(設計書5-1。デバイスAPIと同じく、テストでは基本未使用) ----
+
+  NotificationSettings notificationSettings = const NotificationSettings(
+    startTime: '20:00',
+    endTime: '06:00',
+    soundEnabled: true,
+    soilAlertEnabled: true,
+    temperatureAlertEnabled: true,
+    humidityAlertEnabled: true,
+    illuminanceAlertEnabled: true,
+  );
+  bool throwOnFetchNotificationSettings = false;
+  bool throwOnUpdateNotificationSettings = false;
+
+  @override
+  Future<NotificationSettings> fetchNotificationSettings() async {
+    if (throwOnFetchNotificationSettings) {
+      throw StateError('network error');
+    }
+    return notificationSettings;
+  }
+
+  @override
+  Future<NotificationSettings> updateNotificationSettings(
+    NotificationSettings settings,
+  ) async {
+    if (throwOnUpdateNotificationSettings) {
+      throw StateError('network error');
+    }
+    notificationSettings = settings;
+    return notificationSettings;
+  }
 }
 
 const _unreadNotification = PlantNotification(
@@ -197,6 +231,49 @@ void main() {
       await store.markNotificationRead(999);
 
       expect(store.notifications.single.isRead, false);
+    });
+  });
+
+  group('notificationSettings', () {
+    test('loadNotificationSettings: 成功時はサーバーの値が設定される', () async {
+      final store = PlantStore(FakePlantRepository());
+      await store.loadNotificationSettings();
+
+      expect(store.notificationSettings?.startTime, '20:00');
+      expect(store.notificationSettingsErrorMessage, isNull);
+    });
+
+    test('updateNotificationSettings: 成功時は新しい設定に置き換わる', () async {
+      final store = PlantStore(FakePlantRepository());
+      await store.loadNotificationSettings();
+
+      final updated = store.notificationSettings!.copyWith(
+        soilAlertEnabled: false,
+      );
+      final ok = await store.updateNotificationSettings(updated);
+
+      expect(ok, true);
+      expect(store.notificationSettings?.soilAlertEnabled, false);
+      expect(store.notificationSettingsErrorMessage, isNull);
+    });
+
+    // plant_store.dartのコメント通り「楽観的に反映し、失敗したら元の設定に
+    // 戻す」設計になっているか(ロールバック)を確認する。updatePlant()や
+    // markNotificationRead()と同じ考え方。
+    test('updateNotificationSettings: 失敗時は元の設定に戻す', () async {
+      final repository = FakePlantRepository();
+      final store = PlantStore(repository);
+      await store.loadNotificationSettings();
+      final original = store.notificationSettings!;
+
+      repository.throwOnUpdateNotificationSettings = true;
+      final ok = await store.updateNotificationSettings(
+        original.copyWith(soilAlertEnabled: false),
+      );
+
+      expect(ok, false);
+      expect(store.notificationSettings?.soilAlertEnabled, original.soilAlertEnabled);
+      expect(store.notificationSettingsErrorMessage, isNotNull);
     });
   });
 }

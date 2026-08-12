@@ -3,6 +3,7 @@ import 'dart:math';
 import '../data/dummy_plants.dart';
 import '../models/device.dart';
 import '../models/environment_log.dart';
+import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
 import 'plant_repository.dart';
@@ -222,5 +223,32 @@ class DummyPlantRepository implements PlantRepository {
     if (_plant.deviceId == id) {
       _plant = _plant.copyWith(clearDeviceId: true);
     }
+  }
+
+  // ---- 設計書5-1 通知設定API(ダミー実装) ----
+
+  NotificationSettings _notificationSettings = const NotificationSettings(
+    startTime: '20:00',
+    endTime: '06:00',
+    soundEnabled: true,
+    soilAlertEnabled: true,
+    temperatureAlertEnabled: true,
+    humidityAlertEnabled: true,
+    illuminanceAlertEnabled: true,
+  );
+
+  @override
+  Future<NotificationSettings> fetchNotificationSettings() async {
+    await _simulateNetwork();
+    return _notificationSettings;
+  }
+
+  @override
+  Future<NotificationSettings> updateNotificationSettings(
+    NotificationSettings settings,
+  ) async {
+    await _simulateNetwork();
+    _notificationSettings = settings;
+    return _notificationSettings;
   }
 }

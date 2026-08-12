@@ -6,12 +6,22 @@ class PlantNotification {
   final bool isRead;
   final String createdAt;
 
+  /// 通知のカテゴリ("soil" / "temperature" / "humidity" / "illuminance")。
+  ///
+  /// server/database/db.jsのマイグレーションで追加したフィールドで、
+  /// notification_page.dartのアイコン選択に使う。移行前に作成された既存の
+  /// 通知行はcategoryがNULLのままDBに残っているため、この値がnullの場合が
+  /// ある点に注意(その場合は従来通りmessageのキーワードから推測する
+  /// フォールバック動作にしている。widgets/notification_page.dart参照)。
+  final String? category;
+
   const PlantNotification({
     required this.id,
     required this.plantId,
     required this.message,
     required this.isRead,
     required this.createdAt,
+    this.category,
   });
 
   PlantNotification copyWith({bool? isRead}) {
@@ -21,6 +31,7 @@ class PlantNotification {
       message: message,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt,
+      category: category,
     );
   }
 
@@ -35,6 +46,7 @@ class PlantNotification {
       message: json['message'] as String,
       isRead: rawIsRead == true || rawIsRead == 1,
       createdAt: json['created_at'] as String? ?? '',
+      category: json['category'] as String?,
     );
   }
 

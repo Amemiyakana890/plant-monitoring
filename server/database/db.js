@@ -64,8 +64,8 @@ db.exec(`
 `);
 
 // 通知/アラート画面(設計書5-6・F-05/F-06)向け。
-// notification_settingsは通知設定画面に着手するタイミングで追加する
-// (設計書6章のER図を参照)。devicesは上で追加済み。
+// notification_settingsテーブル自体は本ファイル下部(サイレントタイム関連の
+// マイグレーション)で追加している。devicesは上で追加済み。
 db.exec(`
   CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +75,23 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
 `);
+
+// マイグレーション: 通知のカテゴリ(docs/status-notification-design.md関連)。
+// 'soil' / 'temperature' / 'humidity' / 'illuminance' のいずれかを想定。
+// もともとFlutter側(notification_page.dart)は通知メッセージの文言に
+// 「水分」「湿度」等のキーワードが含まれるかどうかでアイコンを推測していたが、
+// 土壌水分の「やや乾燥」メッセージ(「少し乾いてきました。水やりのタイミングを
+// 確認してください」)には「水分」という文字列が含まれておらず、汎用アイコン
+// (ベルのみ)になってしまうバグがあった。文言に依存しない判定にするため、
+// サーバー側で明示的なカテゴリを持たせることにした。
+// 移行前に作成された既存の通知行はcategoryがNULLのままになるため、
+// Flutter側は「categoryがあれば優先、無ければ従来のキーワード判定にフォール
+// バックする」という互換動作にしている(models/plant_notification.dart参照)。
+const notificationsColumns = db.prepare('PRAGMA table_info(notifications)').all();
+const hasCategoryColumn = notificationsColumns.some((col) => col.name === 'category');
+if (!hasCategoryColumn) {
+  db.exec('ALTER TABLE notifications ADD COLUMN category TEXT;');
+}
 
 // マイグレーション: 既存のplant_monitoring.dbは`CREATE TABLE IF NOT EXISTS`実行時点で
 // 既にplantsテーブルが存在する(=device_id列を持たない状態)ため、上のCREATE TABLE文
@@ -112,6 +129,62 @@ for (const column of newPlantColumns) {
   const exists = currentPlantColumns.some((col) => col.name === column.name);
   if (!exists) {
     db.exec(`ALTER TABLE plants ADD COLUMN ${column.ddl};`);
+  }
+}
+
+// マイグレーション: サイレントタイム(docs/status-notification-design.md 6-4章)。
+// 通知設定はアプリ全体で1レコードのみ保持する(設計書6章ER図の注記通り)。
+// id=1固定で1行だけ運用し、初回起動時にデフォルト値(20:00〜06:00)を投入する。
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notification_settings (
+    id INTEGER PRIMARY KEY,
+    frequency TEXT NOT NULL DEFAULT 'necessary_only',
+    start_time TEXT NOT NULL DEFAULT '20:00',
+    end_time TEXT NOT NULL DEFAULT '06:00',
+    sound_enabled INTEGER NOT NULL DEFAULT 1
+  );
+`);
+db.exec(`
+  INSERT OR IGNORE INTO notification_settings (id, frequency, start_time, end_time, sound_enabled)
+  VALUES (1, 'necessary_only', '20:00', '06:00', 1);
+`);
+
+// plants.pending_notification : サイレントタイム中に「悪化」が起きたかどうかの
+//   フラグ(0/1)。悪化のたびに1に立てるだけで、通知の中身はここでは保持しない
+//   (解禁時にその時点の最新の状態から作り直すため。docs 6-4章)。
+//   すべての項目が適正に戻った場合は0にクリアする。
+// plants.silent_time_unlock_checked_at : 直近でサイレントタイム解禁チェックを
+//   行った時刻。1日1回だけ解禁通知を行うためのマーカー(5章の日次評価と同じ
+//   設計パターン。utils/time.jsのhasPassedDailyMarkerを参照)。
+const silentTimePlantColumns = [
+  { name: 'pending_notification', ddl: 'pending_notification INTEGER NOT NULL DEFAULT 0' },
+  { name: 'silent_time_unlock_checked_at', ddl: 'silent_time_unlock_checked_at TEXT' },
+];
+const plantColumnsAfterDaily = db.prepare('PRAGMA table_info(plants)').all();
+for (const column of silentTimePlantColumns) {
+  const exists = plantColumnsAfterDaily.some((col) => col.name === column.name);
+  if (!exists) {
+    db.exec(`ALTER TABLE plants ADD COLUMN ${column.ddl};`);
+  }
+}
+
+// マイグレーション: 通知アラートのカテゴリ別ON/OFF。
+// トグルOFFは「通知の生成だけを止める」設計とし、判定ロジックやホーム画面の
+// バッジ表示(status/temp_status/humidity_daily_status/illuminance_daily_status)
+// には一切影響しない(サイレントタイムと同じ「見守り自体は止めない」考え方)。
+// バッテリーアラートは、そもそもバッテリー残量を送信する仕組み自体が
+// ESP32側に無く実用化はまだ先のため、今回はスコープ外(列を追加しない)。
+const notificationToggleColumns = [
+  { name: 'soil_alert_enabled', ddl: 'soil_alert_enabled INTEGER NOT NULL DEFAULT 1' },
+  { name: 'temperature_alert_enabled', ddl: 'temperature_alert_enabled INTEGER NOT NULL DEFAULT 1' },
+  { name: 'humidity_alert_enabled', ddl: 'humidity_alert_enabled INTEGER NOT NULL DEFAULT 1' },
+  { name: 'illuminance_alert_enabled', ddl: 'illuminance_alert_enabled INTEGER NOT NULL DEFAULT 1' },
+];
+const notificationSettingsColumns = db.prepare('PRAGMA table_info(notification_settings)').all();
+for (const column of notificationToggleColumns) {
+  const exists = notificationSettingsColumns.some((col) => col.name === column.name);
+  if (!exists) {
+    db.exec(`ALTER TABLE notification_settings ADD COLUMN ${column.ddl};`);
   }
 }
 
