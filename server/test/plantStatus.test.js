@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
   determineStatus,
+  getSeasonalSoilThresholds,
+  classifySoilZone,
+  resolveSoilStatus,
   classifyTemperatureZone,
   resolveTemperatureStatus,
   classifyHumidityDailyAverage,
@@ -133,4 +136,144 @@ test('照度: 500〜1000lux未満はcaution', () => {
 test('照度: 500lux未満はneeds_care', () => {
   assert.equal(classifyIlluminanceDailyAverage(499.9), 'needs_care');
   assert.equal(classifyIlluminanceDailyAverage(0), 'needs_care');
+});
+
+// --- 土壌水分の季節別閾値・継続時間・水やり緩和(docs/status-notification-design.md 3-3) ---
+
+test('季節別閾値: 夏(6〜9月)は40/20、冬(12〜2月)は30/15、それ以外は35/18', () => {
+  for (const month of [6, 7, 8, 9]) {
+    assert.deepEqual(getSeasonalSoilThresholds(month), { healthy: 40, needsCare: 20 });
+  }
+  for (const month of [12, 1, 2]) {
+    assert.deepEqual(getSeasonalSoilThresholds(month), { healthy: 30, needsCare: 15 });
+  }
+  for (const month of [3, 4, 5, 10, 11]) {
+    assert.deepEqual(getSeasonalSoilThresholds(month), { healthy: 35, needsCare: 18 });
+  }
+});
+
+test('classifySoilZone: 夏(7月)の境界値', () => {
+  assert.equal(classifySoilZone(40, 7), 'healthy');
+  assert.equal(classifySoilZone(39.9, 7), 'caution_zone');
+  assert.equal(classifySoilZone(20, 7), 'caution_zone');
+  assert.equal(classifySoilZone(19.9, 7), 'needs_care_zone');
+});
+
+test('classifySoilZone: 冬(1月)の境界値', () => {
+  assert.equal(classifySoilZone(30, 1), 'healthy');
+  assert.equal(classifySoilZone(29.9, 1), 'caution_zone');
+  assert.equal(classifySoilZone(15, 1), 'caution_zone');
+  assert.equal(classifySoilZone(14.9, 1), 'needs_care_zone');
+});
+
+test('classifySoilZone: 春秋(4月)の境界値', () => {
+  assert.equal(classifySoilZone(35, 4), 'healthy');
+  assert.equal(classifySoilZone(34.9, 4), 'caution_zone');
+  assert.equal(classifySoilZone(18, 4), 'caution_zone');
+  assert.equal(classifySoilZone(17.9, 4), 'needs_care_zone');
+});
+
+test('resolveSoilStatus: healthyゾーンは即座にhealthy、継続時間もリセットされる', () => {
+  const result = resolveSoilStatus({
+    soil: 50,
+    month: 7,
+    previousCautionSince: '2026-08-11T00:00:00Z',
+    now: new Date('2026-08-11T12:00:00Z'),
+    lastWateredAt: null,
+  });
+  assert.equal(result.status, 'healthy');
+  assert.equal(result.cautionSince, null);
+});
+
+test('resolveSoilStatus: caution_zoneに入って6時間未満はまだhealthy扱い', () => {
+  const enteredAt = new Date('2026-08-11T00:00:00Z');
+  const now = new Date('2026-08-11T05:59:00Z'); // 5時間59分後
+  const result = resolveSoilStatus({
+    soil: 30, // 夏: caution_zone (20<=30<40)
+    month: 7,
+    previousCautionSince: enteredAt.toISOString(),
+    now,
+    lastWateredAt: null,
+  });
+  assert.equal(result.status, 'healthy');
+});
+
+test('resolveSoilStatus: caution_zoneに6時間以上継続でthirstyに切り替わる', () => {
+  const enteredAt = new Date('2026-08-11T00:00:00Z');
+  const now = new Date('2026-08-11T06:00:01Z'); // 6時間1秒後
+  const result = resolveSoilStatus({
+    soil: 30,
+    month: 7,
+    previousCautionSince: enteredAt.toISOString(),
+    now,
+    lastWateredAt: null,
+  });
+  assert.equal(result.status, 'thirsty');
+});
+
+test('resolveSoilStatus: needs_care_zoneは水やり記録が無ければ即座にdry', () => {
+  const result = resolveSoilStatus({
+    soil: 10, // 夏: needs_care_zone (<20)
+    month: 7,
+    previousCautionSince: null,
+    now: new Date('2026-08-11T12:00:00Z'),
+    lastWateredAt: null,
+  });
+  assert.equal(result.status, 'dry');
+  assert.equal(result.cautionSince, null);
+});
+
+test('resolveSoilStatus: needs_care_zoneでも水やりから2時間以内ならthirstyに緩和', () => {
+  const now = new Date('2026-08-11T12:00:00Z');
+  const wateredAt = new Date('2026-08-11T10:30:00Z'); // 1時間30分前
+  const result = resolveSoilStatus({
+    soil: 10,
+    month: 7,
+    previousCautionSince: null,
+    now,
+    lastWateredAt: wateredAt.toISOString(),
+  });
+  assert.equal(result.status, 'thirsty');
+});
+
+test('resolveSoilStatus: 水やりから2時間を過ぎたらneeds_care_zoneは緩和されずdryに戻る', () => {
+  const now = new Date('2026-08-11T12:00:00Z');
+  const wateredAt = new Date('2026-08-11T09:59:00Z'); // 2時間1分前
+  const result = resolveSoilStatus({
+    soil: 10,
+    month: 7,
+    previousCautionSince: null,
+    now,
+    lastWateredAt: wateredAt.toISOString(),
+  });
+  assert.equal(result.status, 'dry');
+});
+
+test('resolveSoilStatus: caution_zoneには水やり緩和を適用しない(6時間継続のルールのみ)', () => {
+  // 水やり直後(5分前)でも、caution_zoneでは緩和判定自体を行わないため、
+  // 6時間未満ならhealthy、6時間以上ならthirstyという通常のルールのまま。
+  const enteredAt = new Date('2026-08-11T00:00:00Z');
+  const now = new Date('2026-08-11T06:00:01Z');
+  const wateredAt = new Date('2026-08-11T05:55:00Z'); // 5分前
+  const result = resolveSoilStatus({
+    soil: 30,
+    month: 7,
+    previousCautionSince: enteredAt.toISOString(),
+    now,
+    lastWateredAt: wateredAt.toISOString(),
+  });
+  assert.equal(result.status, 'thirsty'); // 緩和されずthirstyのまま
+});
+
+test('resolveSoilStatus: 未来の水やり時刻(時計のズレ)は緩和しない安全側に倒す', () => {
+  const now = new Date('2026-08-11T12:00:00Z');
+  const wateredAt = new Date('2026-08-11T12:05:00Z'); // 5分後(未来)
+  const result = resolveSoilStatus({
+    soil: 10,
+    month: 7,
+    previousCautionSince: null,
+    now,
+    lastWateredAt: wateredAt.toISOString(),
+  });
+  assert.equal(result.status, 'dry');
 });

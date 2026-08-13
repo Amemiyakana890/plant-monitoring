@@ -182,6 +182,58 @@ void main() {
     });
   });
 
+  group('Plant.lastWateredAtDisplay', () {
+    Plant plantWithLastWateredAt(String? lastWateredAt) => Plant(
+      id: 1,
+      name: 'x',
+      species: 'x',
+      temperature: 0,
+      humidity: 0,
+      soilMoisture: 0,
+      illuminance: 0,
+      status: PlantStatus.healthy,
+      updatedAt: '',
+      lastWateredAt: lastWateredAt,
+    );
+
+    test('null(未記録)の場合は「まだ記録がありません」', () {
+      final plant = plantWithLastWateredAt(null);
+      expect(plant.lastWateredAtDisplay(), 'まだ記録がありません');
+    });
+
+    test('1分未満は「たった今」', () {
+      final now = DateTime.utc(2026, 8, 12, 12, 0, 30);
+      final plant = plantWithLastWateredAt('2026-08-12T12:00:00Z');
+      expect(plant.lastWateredAtDisplay(now: now), 'たった今');
+    });
+
+    test('1時間未満は「◯分前」', () {
+      final now = DateTime.utc(2026, 8, 12, 12, 30, 0);
+      final plant = plantWithLastWateredAt('2026-08-12T12:00:00Z');
+      expect(plant.lastWateredAtDisplay(now: now), '30分前');
+    });
+
+    test('24時間未満は「◯時間前」', () {
+      final now = DateTime.utc(2026, 8, 12, 15, 0, 0);
+      final plant = plantWithLastWateredAt('2026-08-12T12:00:00Z');
+      expect(plant.lastWateredAtDisplay(now: now), '3時間前');
+    });
+
+    test('24時間以上は「◯日前」', () {
+      final now = DateTime.utc(2026, 8, 14, 12, 0, 0);
+      final plant = plantWithLastWateredAt('2026-08-12T12:00:00Z');
+      expect(plant.lastWateredAtDisplay(now: now), '2日前');
+    });
+
+    // サーバー・端末間の時計のズレなどで、記録時刻が現在時刻より
+    // 未来になるケースへの安全策(「-5分前」のような表示を防ぐ)。
+    test('未来の時刻(時計のズレ等)は「たった今」に丸める', () {
+      final now = DateTime.utc(2026, 8, 12, 11, 55, 0);
+      final plant = plantWithLastWateredAt('2026-08-12T12:00:00Z');
+      expect(plant.lastWateredAtDisplay(now: now), 'たった今');
+    });
+  });
+
   group('PlantNotification.fromJson', () {
     test('is_readがtrue/falseのbool値を解釈できる', () {
       final n = PlantNotification.fromJson({

@@ -7,6 +7,7 @@ import {
   hasPassedDailyMarker,
   parseHourMinute,
   isWithinSilentTime,
+  getMonthInJst,
 } from '../utils/time.js';
 
 test('toSqliteTimestamp: ミリ秒を含まないUTC文字列になる', () => {
@@ -95,4 +96,23 @@ test('isWithinSilentTime: 開始と終了が同じ場合は常にfalse(無効設
 
 test('isWithinSilentTime: 不正な設定値の場合は安全側(常に通知する=false)に倒す', () => {
   assert.equal(isWithinSilentTime(new Date('2026-08-11T21:00:00'), 'invalid', '06:00'), false);
+});
+
+// --- getMonthInJst(土壌水分の季節別閾値判定で使う、docs 3-3章) ---
+
+test('getMonthInJst: UTCの日中はそのままJSTでも同じ月になる', () => {
+  // UTC 2026-08-11T12:00:00Z -> JST 2026-08-11 21:00 (同じ8月)
+  assert.equal(getMonthInJst(new Date('2026-08-11T12:00:00Z')), 8);
+});
+
+test('getMonthInJst: UTCで月末・JSTでは翌月にまたぐケースを正しく扱う', () => {
+  // UTC 2026-08-31T20:00:00Z -> JST 2026-09-01 05:00 (9月に繰り上がる)
+  assert.equal(getMonthInJst(new Date('2026-08-31T20:00:00Z')), 9);
+  // UTC 2026-08-31T14:00:00Z -> JST 2026-08-31 23:00 (まだ8月のまま)
+  assert.equal(getMonthInJst(new Date('2026-08-31T14:00:00Z')), 8);
+});
+
+test('getMonthInJst: 年末年始をまたぐケース(12月→1月)', () => {
+  // UTC 2026-12-31T20:00:00Z -> JST 2027-01-01 05:00
+  assert.equal(getMonthInJst(new Date('2026-12-31T20:00:00Z')), 1);
 });

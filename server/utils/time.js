@@ -58,6 +58,22 @@ export function shouldRunDailyEvaluation(evaluatedAt, now = new Date()) {
 }
 
 /**
+ * 日本国内・DST無し前提の固定オフセット(+9時間)でJSTに変換した上で、
+ * その月(1〜12)を返す。土壌水分の季節別閾値判定(docs 3-3章、
+ * utils/plantStatus.jsのresolveSoilStatus)で使う。
+ *
+ * サーバーを動かしているマシンのタイムゾーン設定に依存させたくないため
+ * (UTC環境で動かしても常に日本時間としての「今月」を取得できるように)、
+ * 照度の昼間判定(server/controllers/sensorController.jsのSQL)と同じ
+ * 「+9時間固定オフセット」の考え方をJavaScript側でも踏襲している。
+ */
+export function getMonthInJst(date) {
+  const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const jstDate = new Date(date.getTime() + JST_OFFSET_MS);
+  return jstDate.getUTCMonth() + 1;
+}
+
+/**
  * 今が「サイレントタイム」(通知を保留する時間帯、docs 6-4章)かどうかを判定する。
  * start_time〜end_timeが日をまたぐ場合(例: 20:00〜06:00)にも対応する。
  *

@@ -65,6 +65,11 @@ class Plant {
   /// 直近の日次評価が実施された時刻(UTC・ISO8601)。未評価ならnull。
   final String? illuminanceEvaluatedAt;
 
+  /// 直近の水やり記録時刻(UTC・ISO8601、docs 4-2章)。
+  /// センサーからは分からないため、ホーム画面の「水やりした」ボタン
+  /// (widgets/plant_card.dart)から明示的に記録する。一度も記録が無ければnull。
+  final String? lastWateredAt;
+
   const Plant({
     required this.id,
     required this.name,
@@ -83,6 +88,7 @@ class Plant {
     this.illuminanceDailyStatus = EnvironmentLevel.unknown,
     this.illuminanceDailyAvg,
     this.illuminanceEvaluatedAt,
+    this.lastWateredAt,
   });
 
   /// 画面表示用に、サーバーのUTC文字列(例: "2026-08-04T01:08:52Z")を
@@ -100,6 +106,29 @@ class Plant {
   /// 照度の日次評価時刻を「8月10日 15:00時点」の形式で返す。
   String get illuminanceEvaluatedAtDisplay =>
       _formatEvaluatedAt(illuminanceEvaluatedAt);
+
+  /// 最後の水やりからの経過時間を「3時間前」のような相対表記で返す。
+  /// 一度も記録が無い場合は「まだ記録がありません」を返す。
+  ///
+  /// [now]はテスト容易性のための引数(省略時は実行時刻)。
+  /// server側の各判定関数(例: resolveTemperatureStatus)と同じく、
+  /// 呼び出し側から時刻を注入できるようにしている。
+  String lastWateredAtDisplay({DateTime? now}) {
+    if (lastWateredAt == null || lastWateredAt!.isEmpty) {
+      return 'まだ記録がありません';
+    }
+    final parsed = DateTime.tryParse(lastWateredAt!);
+    if (parsed == null) return lastWateredAt!;
+
+    final current = now ?? DateTime.now();
+    final diff = current.difference(parsed.toLocal());
+
+    // 未来の時刻(サーバー・端末間の時計のズレなど)は「たった今」に丸める。
+    if (diff.isNegative || diff.inMinutes < 1) return 'たった今';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
+    if (diff.inHours < 24) return '${diff.inHours}時間前';
+    return '${diff.inDays}日前';
+  }
 
   static String _formatEvaluatedAt(String? iso) {
     if (iso == null || iso.isEmpty) return '';
@@ -130,7 +159,17 @@ class Plant {
   /// 自動的に行われるため、通常はDELETE /devices/:id → fetchPlant()で
   /// 再取得する形を使う。このcopyWithの[clearDeviceId]はローカルの
   /// 楽観的更新など、サーバーを介さずUI側の状態だけ先に変えたい場合向け。
-  Plant copyWith({String? name, String? species, int? deviceId, bool clearDeviceId = false}) {
+  ///
+  /// [lastWateredAt]は「水やりした」ボタンの楽観的更新(state/plant_store.dart
+  /// のrecordWatering)専用。サーバーからの正式な値は次のfetchPlant()で
+  /// 上書きされる想定。
+  Plant copyWith({
+    String? name,
+    String? species,
+    int? deviceId,
+    bool clearDeviceId = false,
+    String? lastWateredAt,
+  }) {
     return Plant(
       id: id,
       name: name ?? this.name,
@@ -149,6 +188,7 @@ class Plant {
       illuminanceDailyStatus: illuminanceDailyStatus,
       illuminanceDailyAvg: illuminanceDailyAvg,
       illuminanceEvaluatedAt: illuminanceEvaluatedAt,
+      lastWateredAt: lastWateredAt ?? this.lastWateredAt,
     );
   }
 
@@ -183,6 +223,7 @@ class Plant {
       ),
       illuminanceDailyAvg: (json['illuminance_daily_avg'] as num?)?.toDouble(),
       illuminanceEvaluatedAt: json['illuminance_evaluated_at'] as String?,
+      lastWateredAt: json['last_watered_at'] as String?,
     );
   }
 

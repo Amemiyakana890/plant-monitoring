@@ -49,4 +49,8 @@ abstract class PlantRepository {
   Future<NotificationSettings> updateNotificationSettings(
     NotificationSettings settings,
   );
+
+  /// POST /plants/:id/waterings 相当(docs/status-notification-design.md 4-2章)。
+  /// ホーム画面の「水やりした」ボタン(widgets/plant_card.dart)から呼ぶ。
+  Future<Plant> recordWatering(int plantId);
 }

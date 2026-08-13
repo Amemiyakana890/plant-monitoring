@@ -18,6 +18,12 @@ class EnvironmentMetricCard extends StatelessWidget {
   /// 温度・土壌水分のようにリアルタイム評価のカードではnull(非表示)にする。
   final String? statusCaption;
 
+  /// カード下部に追加コンテンツを差し込むための拡張スロット。
+  /// 現状は土壌水分カードの「水やりした」ボタン+最終水やり表示
+  /// (widgets/plant_card.dart, docs 4-2章)でのみ使用する。
+  /// null(他3項目)の場合は何も表示せず、これまで通りの見た目のまま。
+  final Widget? footer;
+
   const EnvironmentMetricCard({
     super.key,
     required this.label,
@@ -26,6 +32,7 @@ class EnvironmentMetricCard extends StatelessWidget {
     required this.iconColor,
     required this.status,
     this.statusCaption,
+    this.footer,
   });
 
   @override
@@ -84,6 +91,10 @@ class EnvironmentMetricCard extends StatelessWidget {
                   color: Colors.grey,
                 ),
               ),
+            ],
+            if (footer != null) ...[
+              const SizedBox(height: AppSpacing.small),
+              footer!,
             ],
           ],
         ),

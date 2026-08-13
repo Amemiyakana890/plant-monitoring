@@ -22,6 +22,15 @@ const selectLatestLogStmt = db.prepare(
   `SELECT * FROM sensor_logs WHERE plant_id = ? ORDER BY id DESC LIMIT 1`,
 );
 
+// 水やり記録(docs/status-notification-design.md 4-2章)。sensor_logsと同じ理由で
+// id DESCを使う(同一秒に複数回記録された場合でも最新を確実に取るため)。
+const selectLatestWateringLogStmt = db.prepare(
+  `SELECT * FROM watering_logs WHERE plant_id = ? ORDER BY id DESC LIMIT 1`,
+);
+const insertWateringLogStmt = db.prepare(
+  `INSERT INTO watering_logs (plant_id) VALUES (?)`,
+);
+
 /**
  * plants テーブルの1行と、直近の sensor_logs 1件を合成して
  * 設計書5-2のレスポンス例({ id, name, ..., temperature, ..., updated_at })
@@ -30,6 +39,7 @@ const selectLatestLogStmt = db.prepare(
  */
 function toPlantResponse(plantRow) {
   const latestLog = selectLatestLogStmt.get(plantRow.id);
+  const latestWateringLog = selectLatestWateringLogStmt.get(plantRow.id);
   return {
     id: plantRow.id,
     name: plantRow.name,
@@ -49,7 +59,24 @@ function toPlantResponse(plantRow) {
     humidity_daily_avg: plantRow.humidity_daily_avg ?? null,
     illuminance_daily_status: plantRow.illuminance_daily_status ?? null,
     illuminance_daily_avg: plantRow.illuminance_daily_avg ?? null,
+    // 水やり記録(4-2章)。まだ一度も記録が無い植物はnullになる。
+    last_watered_at: latestWateringLog?.watered_at ?? null,
   };
+}
+
+// POST /plants/:id/waterings (docs/status-notification-design.md 4-2章)
+// ホーム画面の「水やりした」ボタンから呼ぶ。v1は履歴一覧を返す必要が
+// ないため、記録した上で最新のplant状態(last_watered_at込み)を返す。
+export function recordWatering(req, res) {
+  const id = Number(req.params.id);
+  const existing = selectPlantStmt.get(id);
+
+  if (!existing) {
+    return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
+  }
+
+  insertWateringLogStmt.run(id);
+  res.status(201).json(toPlantResponse(existing));
 }
 
 // POST /plants (設計書5-2)

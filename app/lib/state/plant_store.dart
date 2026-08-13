@@ -35,6 +35,7 @@ class PlantStore extends ChangeNotifier {
   bool isPairing = false;
   bool isLoadingNotificationSettings = false;
   bool isSavingNotificationSettings = false;
+  bool isRecordingWatering = false;
 
   // データの種類ごとにエラーを分ける。1つの errorMessage にまとめると、
   // 例えば履歴取得の失敗が通知一覧のエラー表示を上書きしてしまうため。
@@ -44,6 +45,7 @@ class PlantStore extends ChangeNotifier {
   String? devicesErrorMessage;
   String? pairErrorMessage;
   String? notificationSettingsErrorMessage;
+  String? wateringErrorMessage;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
@@ -291,6 +293,38 @@ class PlantStore extends ChangeNotifier {
       return false;
     } finally {
       isSavingNotificationSettings = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- 水やり記録(docs/status-notification-design.md 4-2章) ----
+
+  /// ホーム画面の「水やりした」ボタン(widgets/plant_card.dart)から呼ぶ。
+  /// 楽観的に「たった今」を反映してから実際にサーバーへ記録し、
+  /// 成功したらサーバーが返す正式なlast_watered_atに置き換える
+  /// (updateNotificationSettings()と同じ「楽観的更新→失敗時ロールバック」の考え方)。
+  /// 成功時はtrue、失敗時はfalseを返す。
+  Future<bool> recordWatering() async {
+    final current = plant;
+    if (current == null) return false;
+
+    final previous = current;
+    plant = current.copyWith(
+      lastWateredAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    isRecordingWatering = true;
+    wateringErrorMessage = null;
+    notifyListeners();
+
+    try {
+      plant = await _repository.recordWatering(current.id);
+      return true;
+    } catch (_) {
+      plant = previous;
+      wateringErrorMessage = '水やりの記録に失敗しました';
+      return false;
+    } finally {
+      isRecordingWatering = false;
       notifyListeners();
     }
   }

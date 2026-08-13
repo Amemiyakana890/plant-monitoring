@@ -1,6 +1,6 @@
 import db from '../database/db.js';
 import {
-  determineStatus,
+  resolveSoilStatus,
   resolveTemperatureStatus,
   classifyHumidityDailyAverage,
   classifyIlluminanceDailyAverage,
@@ -13,6 +13,7 @@ import {
   hasPassedDailyMarker,
   isWithinSilentTime,
   parseHourMinute,
+  getMonthInJst,
 } from '../utils/time.js';
 
 // device_idから紐づく植物を1件引く(設計書6章: plants.device_id → devices.id)。
@@ -32,7 +33,7 @@ const insertLogStmt = db.prepare(
 );
 
 const updateStatusStmt = db.prepare(
-  `UPDATE plants SET status = ? WHERE id = ?`,
+  `UPDATE plants SET status = ?, soil_caution_since = ? WHERE id = ?`,
 );
 
 const updateTemperatureStmt = db.prepare(
@@ -53,6 +54,12 @@ const setPendingNotificationStmt = db.prepare(
 
 const setSilentTimeUnlockCheckedAtStmt = db.prepare(
   `UPDATE plants SET silent_time_unlock_checked_at = ? WHERE id = ?`,
+);
+
+// 水やり緩和(docs 3-3章)用。直近の水やり記録を1件取る(4-2章のwatering_logs)。
+// sensor_logsと同じ理由(同一秒内の複数記録)でid DESCを使う。
+const selectLatestWateringLogStmt = db.prepare(
+  `SELECT * FROM watering_logs WHERE plant_id = ? ORDER BY id DESC LIMIT 1`,
 );
 
 // 湿度: 直近24時間の単純平均(docs/status-notification-design.md 3-2)。
@@ -81,10 +88,6 @@ const selectIlluminanceDaytimeAverageStmt = db.prepare(`
 
 // categoryは 'soil' / 'temperature' / 'humidity' / 'illuminance' のいずれか
 // (database/db.jsのマイグレーション参照)。
-// もともとFlutter側は通知メッセージの文言に含まれるキーワードでアイコンを
-// 推測していたが、土壌水分の「やや乾燥」メッセージには「水分」という文字列が
-// 含まれておらず汎用アイコンになってしまうバグがあった。文言に依存しない
-// 判定にするため、生成する側であるここで明示的なカテゴリを持たせている。
 const insertNotificationStmt = db.prepare(
   `INSERT INTO notifications (plant_id, message, category) VALUES (?, ?, ?)`,
 );
@@ -107,7 +110,7 @@ const TEMPERATURE_NOTIFICATION_MESSAGE = {
 };
 
 // 湿度・照度の通知メッセージは平均値を埋め込むため、日次評価(runDailyEvaluations)と
-// サイレントタイム解禁時の再通知(buildWorstAxisMessage)の両方から呼べるよう
+// サイレントタイム解禁時の再通知(buildWorstAxisNotification)の両方から呼べるよう
 // 関数として切り出している。
 function buildHumidityNeedsCareMessage(avgHumidity) {
   return avgHumidity < 40
@@ -119,65 +122,69 @@ function buildIlluminanceNeedsCareMessage(avgIlluminance) {
   return `過去24時間(昼間)の日照が不足しています(平均${avgIlluminance.toFixed(0)}lux)。日当たりの良い場所への移動を検討してください`;
 }
 
-// サイレントタイム中(docs 6-4章)は通知を直接作らず、「悪化があった」という
-// フラグだけを立てる。解禁時にその時点の最新の状態から通知を作り直すため、
-// メッセージの中身はここでは保持しない。
-//
-// NOTE: トグルOFF(通知アラート無効)のカテゴリは、この関数を呼ぶ「前」の
-// 各maybeCreate*/runDailyEvaluations側でガードして呼ばないようにしている
-// (=OFFのカテゴリはpending_notificationも一切立てない。判定・表示自体は
-// 止めない設計なので、plants側のステータス更新は常に行う点に注意)。
-function notifyOrDefer(plant, message, category, silentNow) {
-  if (silentNow) {
-    setPendingNotificationStmt.run(1, plant.id);
-    return;
-  }
-  insertNotificationStmt.run(plant.id, message, category);
+// candidatesの中から最も深刻な(rankが最大の)ものを1件選ぶ共通ヘルパー。
+// rank<=0または message が無いものは候補として扱わない
+// (healthy扱い、またはアラートOFFで候補生成側がnullを返したもの)。
+// docs/status-notification-design.md 6-3: 「複数項目が同時に悪化した場合、
+// 通知メッセージは最も深刻な項目を優先して1件生成する」を実現するための要。
+function pickWorstCandidate(candidates) {
+  const valid = candidates.filter((c) => c && c.rank > 0 && c.message);
+  if (valid.length === 0) return null;
+  valid.sort((a, b) => b.rank - a.rank);
+  return valid[0];
 }
 
-// 土壌水分の状態がpreviousStatusからnewStatusへ悪化した場合のみ通知を1件作成する。
-// (healthy→thirsty、thirsty→dry、healthy→dryのいずれか。改善方向は通知しない)
-// トグルOFF時は判定(plants.statusの更新)は行うが通知だけ止める。
-function maybeCreateSoilNotification(plant, previousStatus, newStatus, silentNow, enabled) {
-  if (!enabled) return;
+// 土壌水分の状態がpreviousStatusからnewStatusへ悪化した場合のみ、
+// 通知の「候補」を返す(healthy→thirsty、thirsty→dry、healthy→dryのいずれか。
+// 改善方向はnull)。実際に通知を作成するかどうかは呼び出し元
+// (receiveSensorData)が他項目の候補とまとめて判断する(6-3章の1件集約)。
+// トグルOFF時はそもそも候補にしない(判定=plants.statusの更新は別途行う)。
+function evaluateSoilNotificationCandidate(previousStatus, newStatus, enabled) {
+  if (!enabled) return null;
 
   const previousRank = SOIL_STATUS_RANK[previousStatus] ?? 0;
   const newRank = SOIL_STATUS_RANK[newStatus] ?? 0;
-  if (newRank <= previousRank) return;
+  if (newRank <= previousRank) return null;
 
   const message = SOIL_NOTIFICATION_MESSAGE[newStatus];
-  if (!message) return;
+  if (!message) return null;
 
-  notifyOrDefer(plant, message, 'soil', silentNow);
+  return { rank: newRank, message, category: 'soil' };
 }
 
-// 温度の状態がpreviousStatusからnewStatusへ悪化した場合のみ通知を1件作成する
-// (docs/status-notification-design.md 6-1: リアルタイム系は「悪化した瞬間のみ」通知)。
-function maybeCreateTemperatureNotification(plant, previousStatus, newStatus, silentNow, enabled) {
-  if (!enabled) return;
+// 温度版。考え方はevaluateSoilNotificationCandidateと同じ
+// (docs 6-1: リアルタイム系は「悪化した瞬間のみ」候補になる)。
+function evaluateTemperatureNotificationCandidate(previousStatus, newStatus, enabled) {
+  if (!enabled) return null;
 
   const previousRank = LEVEL_RANK[previousStatus] ?? 0;
   const newRank = LEVEL_RANK[newStatus] ?? 0;
-  if (newRank <= previousRank) return;
+  if (newRank <= previousRank) return null;
 
   const message = TEMPERATURE_NOTIFICATION_MESSAGE[newStatus];
-  if (!message) return;
+  if (!message) return null;
 
-  notifyOrDefer(plant, message, 'temperature', silentNow);
+  return { rank: newRank, message, category: 'temperature' };
 }
 
 // 湿度・照度の日次レポート(docs 6-5)を評価し、DBを更新する。
 // 6-5の最終確定ルール:「その日の評価が要ケアの場合のみ通知する」
 // (前回の評価と比較しない。要ケアが続く限り毎日15:00に通知する)。
-// トグルOFF時も評価・DB更新自体は行い、通知の生成だけをスキップする
+// トグルOFF時も評価・DB更新自体は行い、通知候補の生成だけをスキップする
 // (ホーム画面のバッジ表示は変わらず動く)。
 //
-// @returns {{ humidityDailyStatus: string|null, illuminanceDailyStatus: string|null }}
-//   このtick終了時点での最新のステータス(評価しなかった場合はplantの既存値をそのまま返す)。
-//   サイレントタイム中の「全項目が適正に戻ったか」判定(isFullyHealthy)で使う。
-function runDailyEvaluations(plant, now, silentNow, settings) {
+// @returns {{
+//   humidityDailyStatus: string|null,
+//   illuminanceDailyStatus: string|null,
+//   candidates: Array<{rank:number, message:string, category:string}>
+// }}
+//   ステータスはこのtick終了時点での最新値(評価しなかった場合はplantの
+//   既存値をそのまま返す)。candidatesは呼び出し元で他項目とまとめて
+//   pickWorstCandidate()にかける(6-3章の1件集約)。
+function runDailyEvaluations(plant, now, settings) {
   let humidityDailyStatus = plant.humidity_daily_status;
   let illuminanceDailyStatus = plant.illuminance_daily_status;
+  const candidates = [];
 
   if (shouldRunDailyEvaluation(plant.humidity_evaluated_at, now)) {
     const { avg_value: avgHumidity, sample_count: sampleCount } =
@@ -195,7 +202,11 @@ function runDailyEvaluations(plant, now, silentNow, settings) {
       );
 
       if (humidityDailyStatus === 'needs_care' && settings.humidity_alert_enabled) {
-        notifyOrDefer(plant, buildHumidityNeedsCareMessage(avgHumidity), 'humidity', silentNow);
+        candidates.push({
+          rank: LEVEL_RANK.needs_care,
+          message: buildHumidityNeedsCareMessage(avgHumidity),
+          category: 'humidity',
+        });
       }
     }
   }
@@ -214,17 +225,16 @@ function runDailyEvaluations(plant, now, silentNow, settings) {
       );
 
       if (illuminanceDailyStatus === 'needs_care' && settings.illuminance_alert_enabled) {
-        notifyOrDefer(
-          plant,
-          buildIlluminanceNeedsCareMessage(avgIlluminance),
-          'illuminance',
-          silentNow,
-        );
+        candidates.push({
+          rank: LEVEL_RANK.needs_care,
+          message: buildIlluminanceNeedsCareMessage(avgIlluminance),
+          category: 'illuminance',
+        });
       }
     }
   }
 
-  return { humidityDailyStatus, illuminanceDailyStatus };
+  return { humidityDailyStatus, illuminanceDailyStatus, candidates };
 }
 
 // 4項目(土壌水分・温度・湿度・照度)のうち最も深刻なものの通知内容を返す。
@@ -234,6 +244,11 @@ function runDailyEvaluations(plant, now, silentNow, settings) {
 //
 // トグルOFFのカテゴリを候補から除外することで、「湿度アラートをOFFにしている
 // のに、サイレントタイム解禁時には湿度の内容で通知が来る」という矛盾を防ぐ。
+//
+// NOTE: これは「その時点で現在バッドな状態にあるかどうか」を見る関数で、
+// 下のreceiveSensorData内で使う「このtickで悪化"した瞬間"かどうか」を見る
+// evaluate*NotificationCandidate系とは判定対象が異なる(共通なのは
+// pickWorstCandidate()による1件選定のロジックのみ)。
 function buildWorstAxisNotification(plant, settings) {
   const candidates = [
     {
@@ -264,12 +279,10 @@ function buildWorstAxisNotification(plant, settings) {
           : undefined,
       category: 'illuminance',
     },
-  ].filter((candidate) => candidate.rank > 0 && candidate.message);
+  ];
 
-  if (candidates.length === 0) return null;
-
-  candidates.sort((a, b) => b.rank - a.rank);
-  const winner = candidates[0];
+  const winner = pickWorstCandidate(candidates);
+  if (!winner) return null;
   return { message: winner.message, category: winner.category };
 }
 
@@ -370,7 +383,11 @@ export function receiveSensorData(req, res) {
     illuminance ?? null,
   );
 
-  // 土壌水分: 受信のたびに閾値と比較して plants.status を更新する(設計書5-4・5-7)。
+  // 土壌水分: 季節別閾値・継続時間・水やり緩和を考慮して判定する(docs 3-3章)。
+  // 温度(resolveTemperatureStatus)と同じく「バッジ自体を継続時間で遅らせる」
+  // 方式に統一している(一時的なブレで一喜一憂させないという3-3章の意図を、
+  // 通知だけでなくバッジ表示にも反映するため)。
+  //
   // NOTE: plants.statusは現時点でも土壌水分専用のまま変更していない
   // (healthy/thirsty/dryという語彙自体が「水やり」を意味しており、
   // 温度・湿度・照度の悪化をここに混ぜるとホーム画面の元のメッセージ
@@ -381,18 +398,29 @@ export function receiveSensorData(req, res) {
   // トグルOFF時もこのstatus自体の更新は行う(通知だけを止める設計。
   // 前回の会話での確認事項)。
   const previousSoilStatus = plant.status;
-  const soilStatus = determineStatus(soil);
-  updateStatusStmt.run(soilStatus, plant.id);
-  maybeCreateSoilNotification(
-    plant,
+  const latestWateringLog = selectLatestWateringLogStmt.get(plant.id);
+  const resolvedSoil = resolveSoilStatus({
+    soil,
+    month: getMonthInJst(now),
+    previousCautionSince: plant.soil_caution_since,
+    now,
+    lastWateredAt: latestWateringLog?.watered_at ?? null,
+  });
+  const soilStatus = resolvedSoil.status;
+  updateStatusStmt.run(
+    soilStatus,
+    resolvedSoil.cautionSince ? toSqliteTimestamp(resolvedSoil.cautionSince) : null,
+    plant.id,
+  );
+  const soilCandidate = evaluateSoilNotificationCandidate(
     previousSoilStatus,
     soilStatus,
-    silentNow,
     Boolean(settings.soil_alert_enabled),
   );
 
   // 温度: リアルタイム・継続時間ベース(docs 3-1)。temperatureが未送信の場合はスキップ。
   let tempStatus = plant.temp_status ?? 'healthy';
+  let temperatureCandidate = null;
   if (temperature !== undefined && temperature !== null) {
     const previousTempStatus = plant.temp_status ?? 'healthy';
     const resolved = resolveTemperatureStatus(
@@ -406,22 +434,36 @@ export function receiveSensorData(req, res) {
       resolved.since ? toSqliteTimestamp(resolved.since) : null,
       plant.id,
     );
-    maybeCreateTemperatureNotification(
-      plant,
+    temperatureCandidate = evaluateTemperatureNotificationCandidate(
       previousTempStatus,
       tempStatus,
-      silentNow,
       Boolean(settings.temperature_alert_enabled),
     );
   }
 
   // 湿度・照度: 1日1回、15:00をまたいだ最初の受信で評価する(docs 5章・6-5章)。
-  const { humidityDailyStatus, illuminanceDailyStatus } = runDailyEvaluations(
-    plant,
-    now,
-    silentNow,
-    settings,
-  );
+  const {
+    humidityDailyStatus,
+    illuminanceDailyStatus,
+    candidates: dailyCandidates,
+  } = runDailyEvaluations(plant, now, settings);
+
+  // ここまでで集まった「このtickで悪化した」候補をまとめて1件に絞る
+  // (docs 6-3章: 複数項目が同時に悪化しても通知は乱発しない)。
+  // サイレントタイム中は中身を保持せずフラグだけ立てる(docs 6-4章、
+  // 解禁時にbuildWorstAxisNotification()でその時点の最新状態から作り直す)。
+  const worstCandidate = pickWorstCandidate([
+    soilCandidate,
+    temperatureCandidate,
+    ...dailyCandidates,
+  ]);
+  if (worstCandidate) {
+    if (silentNow) {
+      setPendingNotificationStmt.run(1, plant.id);
+    } else {
+      insertNotificationStmt.run(plant.id, worstCandidate.message, worstCandidate.category);
+    }
+  }
 
   // サイレントタイム中に全項目が適正へ回復していたら、pending_notificationを
   // クリアする(docs 6-4章)。湿度・照度はこのtickで再評価されるとは限らないため、

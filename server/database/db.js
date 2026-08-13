@@ -63,6 +63,20 @@ db.exec(`
   );
 `);
 
+// 水やり記録(docs/status-notification-design.md 4-2章)。
+// センサーだけでは「水やりした瞬間」が分からないため、ホーム画面の
+// 「水やりした」ボタン(土壌水分カード内)から明示的に記録できるようにする。
+// v1では「最後にいつ水をあげたか」が分かれば十分なため、履歴の一覧・
+// グラフへの反映(3-3章で触れた「水やりタイミングをマーカー表示」)は
+// 保留し、まずは記録・直近日時の表示のみ対応する。
+db.exec(`
+  CREATE TABLE IF NOT EXISTS watering_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    watered_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+`);
+
 // 通知/アラート画面(設計書5-6・F-05/F-06)向け。
 // notification_settingsテーブル自体は本ファイル下部(サイレントタイム関連の
 // マイグレーション)で追加している。devicesは上で追加済み。
@@ -127,6 +141,21 @@ const newPlantColumns = [
 const currentPlantColumns = db.prepare('PRAGMA table_info(plants)').all();
 for (const column of newPlantColumns) {
   const exists = currentPlantColumns.some((col) => col.name === column.name);
+  if (!exists) {
+    db.exec(`ALTER TABLE plants ADD COLUMN ${column.ddl};`);
+  }
+}
+
+// マイグレーション: 土壌水分の季節別閾値・継続時間判定(docs 3-3章)用カラム。
+// temp_out_of_range_sinceと同じ役割で、caution_zone(注意ゾーン)に入り続けている
+// 開始時刻を保持する(utils/plantStatus.jsのresolveSoilStatus参照)。
+// 要ケアゾーンは継続時間を問わない(水やり緩和のみ)ため専用カラムは不要。
+const soilStatusColumns = [
+  { name: 'soil_caution_since', ddl: 'soil_caution_since TEXT' },
+];
+const plantColumnsForSoil = db.prepare('PRAGMA table_info(plants)').all();
+for (const column of soilStatusColumns) {
+  const exists = plantColumnsForSoil.some((col) => col.name === column.name);
   if (!exists) {
     db.exec(`ALTER TABLE plants ADD COLUMN ${column.ddl};`);
   }

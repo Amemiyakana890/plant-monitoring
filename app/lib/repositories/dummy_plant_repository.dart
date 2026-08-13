@@ -68,6 +68,15 @@ class DummyPlantRepository implements PlantRepository {
   }
 
   @override
+  Future<Plant> recordWatering(int plantId) async {
+    await _simulateNetwork();
+    _plant = _plant.copyWith(
+      lastWateredAt: DateTime.now().toUtc().toIso8601String(),
+    );
+    return _plant;
+  }
+
+  @override
   Future<List<EnvironmentLog>> fetchHistory({String range = '7d'}) async {
     await _simulateNetwork();
     switch (range) {

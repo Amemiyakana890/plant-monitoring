@@ -131,6 +131,20 @@ class FakePlantRepository implements PlantRepository {
     notificationSettings = settings;
     return notificationSettings;
   }
+
+  // ---- 水やり記録API(docs/status-notification-design.md 4-2章) ----
+
+  bool throwOnRecordWatering = false;
+  String? recordedWateringAt;
+
+  @override
+  Future<Plant> recordWatering(int plantId) async {
+    if (throwOnRecordWatering) {
+      throw StateError('network error');
+    }
+    recordedWateringAt = '2026-08-12T12:00:00Z';
+    return plant.copyWith(lastWateredAt: recordedWateringAt);
+  }
 }
 
 const _unreadNotification = PlantNotification(
@@ -274,6 +288,45 @@ void main() {
       expect(ok, false);
       expect(store.notificationSettings?.soilAlertEnabled, original.soilAlertEnabled);
       expect(store.notificationSettingsErrorMessage, isNotNull);
+    });
+  });
+
+  group('recordWatering', () {
+    test('成功時はサーバーが返したlast_watered_atに置き換わる', () async {
+      final store = PlantStore(FakePlantRepository());
+      await store.loadPlant();
+
+      final ok = await store.recordWatering();
+
+      expect(ok, true);
+      expect(store.plant?.lastWateredAt, '2026-08-12T12:00:00Z');
+      expect(store.wateringErrorMessage, isNull);
+      expect(store.isRecordingWatering, false);
+    });
+
+    // plant_store.dartのコメント通り「楽観的に反映し、失敗したら元の状態に
+    // 戻す」設計になっているか(ロールバック)を確認する。
+    // updateNotificationSettings()と同じ考え方。
+    test('失敗時は元の状態(未記録)に戻す', () async {
+      final repository = FakePlantRepository()..throwOnRecordWatering = true;
+      final store = PlantStore(repository);
+      await store.loadPlant();
+      final originalLastWateredAt = store.plant?.lastWateredAt;
+
+      final ok = await store.recordWatering();
+
+      expect(ok, false);
+      expect(store.plant?.lastWateredAt, originalLastWateredAt);
+      expect(store.wateringErrorMessage, isNotNull);
+    });
+
+    test('植物がまだ読み込まれていない場合は何もせずfalseを返す', () async {
+      final store = PlantStore(FakePlantRepository());
+      // loadPlant()を呼んでいないため store.plant は null のまま。
+
+      final ok = await store.recordWatering();
+
+      expect(ok, false);
     });
   });
 }

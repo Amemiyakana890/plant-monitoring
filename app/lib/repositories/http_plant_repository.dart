@@ -71,6 +71,14 @@ class HttpPlantRepository implements PlantRepository {
   }
 
   @override
+  Future<Plant> recordWatering(int plantId) async {
+    final uri = Uri.parse('$baseUrl/plants/$plantId/waterings');
+    final res = await http.post(uri);
+    _ensureOk(res, 'POST /plants/$plantId/waterings');
+    return Plant.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  @override
   Future<List<EnvironmentLog>> fetchHistory({String range = '7d'}) async {
     final id = await _resolvePlantId();
     final uri = Uri.parse('$baseUrl/history/$id?range=$range');
