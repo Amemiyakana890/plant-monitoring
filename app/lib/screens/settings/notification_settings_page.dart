@@ -29,7 +29,7 @@ class NotificationSettingsPage extends StatefulWidget {
 
 class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   // バッテリーアラートのみ、上記の理由でローカル状態のまま(未保存)。
-  bool _batteryAlert = true;
+  final bool _batteryAlert = true;
 
   @override
   void initState() {

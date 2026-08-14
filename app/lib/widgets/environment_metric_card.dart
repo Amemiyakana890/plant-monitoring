@@ -65,14 +65,14 @@ class EnvironmentMetricCard extends StatelessWidget {
                 value: status.ratio,
                 minHeight: 6,
                 color: status.color,
-                backgroundColor: status.color.withOpacity(0.15),
+                backgroundColor: status.color.withValues(alpha: 0.15),
               ),
             ),
             const SizedBox(height: AppSpacing.small),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: status.color.withOpacity(0.15),
+                color: status.color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(AppRadii.medium),
               ),
               child: Text(
@@ -83,15 +83,29 @@ class EnvironmentMetricCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (statusCaption != null && statusCaption!.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                statusCaption!,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Colors.grey,
-                ),
-              ),
-            ],
+            // キャプション欄は「表示する/しない」で高さを動的に変えず、
+            // 常に同じ高さを確保しておく(中身が空文字でもSizedBoxだけ描画する)。
+            //
+            // 経緯: 以前はstatusCaptionの有無でこの部分の高さ自体が変わって
+            // いたため、同じ行に並ぶ温度カード(キャプション無し)と湿度カード
+            // (キャプション有り)の高さがタイミングによって食い違い、
+            // IntrinsicHeightでの高さ合わせ(widgets/plant_card.dart)がズレて
+            // 「BOTTOM OVERFLOWED BY 2.0 PIXELS」が発生することがあった
+            // (日次評価が実行されてキャプションが付く/消えるタイミングで
+            // 再現するため、「時間が経つと直ったり再現したりする」ように見えていた)。
+            // 高さを固定することで、この食い違い自体をそもそも起こさないようにしている。
+            const SizedBox(height: 2),
+            SizedBox(
+              height: 14,
+              child: (statusCaption != null && statusCaption!.isNotEmpty)
+                  ? Text(
+                      statusCaption!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.grey,
+                      ),
+                    )
+                  : null,
+            ),
             if (footer != null) ...[
               const SizedBox(height: AppSpacing.small),
               footer!,

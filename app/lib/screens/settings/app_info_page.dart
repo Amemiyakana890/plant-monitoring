@@ -167,7 +167,7 @@ class _AppInfoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: iconBackground.withOpacity(0.18),
+        backgroundColor: iconBackground.withValues(alpha: 0.18),
         child: Icon(icon, color: iconBackground, size: 20),
       ),
       title: Text(title),
