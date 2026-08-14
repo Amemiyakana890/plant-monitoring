@@ -23,35 +23,71 @@ export function parseHourMinute(value) {
   return { hour, minute };
 }
 
+// 日本国内・DST無し前提の固定オフセット。サーバーを動かしているマシンの
+// システムタイムゾーン設定(例: クラウド・Dockerで一般的なUTC)に依存させたく
+// ないため、「+9時間したうえでUTCのgetter/setterを使う」という考え方を
+// この ファイル内のJST関連関数すべてで統一している
+// (照度の昼間判定(server/controllers/sensorController.jsのSQL)や
+// getMonthInJstと同じ考え方)。
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/** dateを「JSTとして見た場合の見た目上のDate」に変換する内部ヘルパー。 */
+function toJstView(date) {
+  return new Date(date.getTime() + JST_OFFSET_MS);
+}
+
 /**
- * 「1日1回、決まった時刻(hour:minute)をまたいだタイミングで何かを実行する」
+ * baseDateと同じ「JST上の日付」で、時刻だけhour:minuteに設定した瞬間を、
+ * 実際のUTC基準のDateオブジェクトとして返す内部ヘルパー。
+ * 例: baseDateがJSTで2026-08-14 16:38、hour=15,minute=0なら、
+ *     「2026-08-14のJST 15:00」に相当する実時刻(UTC 2026-08-14 06:00)を返す。
+ */
+function jstMarkerAsInstant(baseDate, hour, minute) {
+  const jstView = toJstView(baseDate);
+  const markerAsJstWallClock = Date.UTC(
+    jstView.getUTCFullYear(),
+    jstView.getUTCMonth(),
+    jstView.getUTCDate(),
+    hour,
+    minute,
+    0,
+    0,
+  );
+  return new Date(markerAsJstWallClock - JST_OFFSET_MS);
+}
+
+/**
+ * 「1日1回、決まった時刻(JSTのhour:minute)をまたいだタイミングで何かを実行する」
  * という設計パターン(湿度・照度の日次レポート評価、サイレントタイムの解禁判定。
  * docs/status-notification-design.md 5章・6-4章)で共通して使うための汎用関数。
  * スケジューラを持たず、次にPOST /sensorを受信したタイミングで判定する設計。
  *
+ * hour:minuteはJST(日本時間)として解釈する。サーバーのシステムタイムゾーンが
+ * UTCであっても常にJSTの時刻として扱えるよう、jstMarkerAsInstant()で
+ * JST基準の「今日のマーカー時刻」を実時刻に変換してから比較している。
+ *
  * @param {string|null} lastRunAt 前回実行した時刻(ISO8601、DB保存値)。未実行ならnull。
  * @param {Date} now 現在時刻
- * @param {number} hour 基準時刻の時(0〜23)
- * @param {number} minute 基準時刻の分(0〜59)
+ * @param {number} hour 基準時刻の時(0〜23、JST)
+ * @param {number} minute 基準時刻の分(0〜59、JST)
  * @returns {boolean} 今回実行すべきならtrue
  */
 export function hasPassedDailyMarker(lastRunAt, now, hour, minute) {
-  const todayMarker = new Date(now);
-  todayMarker.setHours(hour, minute, 0, 0);
+  const todayMarker = jstMarkerAsInstant(now, hour, minute);
 
-  // まだ本日の基準時刻に達していない → 前回分の結果をそのまま維持する。
+  // まだ本日(JST)の基準時刻に達していない → 前回分の結果をそのまま維持する。
   if (now.getTime() < todayMarker.getTime()) return false;
 
   // 一度も実行したことがない(セットアップ直後など) → 実行する。
   if (!lastRunAt) return true;
 
-  // 前回実行が「本日の基準時刻より前」なら、今日分がまだ未実施ということ。
+  // 前回実行が「本日(JST)の基準時刻より前」なら、今日分がまだ未実施ということ。
   return new Date(lastRunAt).getTime() < todayMarker.getTime();
 }
 
 /**
  * 湿度・照度の「日次レポート」(docs 3-2, 3-4, 5章)を
- * 今回のPOST /sensor受信時に評価すべきかどうかを判定する(毎日15:00固定)。
+ * 今回のPOST /sensor受信時に評価すべきかどうかを判定する(毎日JST 15:00固定)。
  */
 export function shouldRunDailyEvaluation(evaluatedAt, now = new Date()) {
   return hasPassedDailyMarker(evaluatedAt, now, 15, 0);
@@ -61,25 +97,20 @@ export function shouldRunDailyEvaluation(evaluatedAt, now = new Date()) {
  * 日本国内・DST無し前提の固定オフセット(+9時間)でJSTに変換した上で、
  * その月(1〜12)を返す。土壌水分の季節別閾値判定(docs 3-3章、
  * utils/plantStatus.jsのresolveSoilStatus)で使う。
- *
- * サーバーを動かしているマシンのタイムゾーン設定に依存させたくないため
- * (UTC環境で動かしても常に日本時間としての「今月」を取得できるように)、
- * 照度の昼間判定(server/controllers/sensorController.jsのSQL)と同じ
- * 「+9時間固定オフセット」の考え方をJavaScript側でも踏襲している。
  */
 export function getMonthInJst(date) {
-  const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-  const jstDate = new Date(date.getTime() + JST_OFFSET_MS);
-  return jstDate.getUTCMonth() + 1;
+  return toJstView(date).getUTCMonth() + 1;
 }
 
 /**
  * 今が「サイレントタイム」(通知を保留する時間帯、docs 6-4章)かどうかを判定する。
  * start_time〜end_timeが日をまたぐ場合(例: 20:00〜06:00)にも対応する。
+ * start_time/end_timeはJST(日本時間)として解釈する(hasPassedDailyMarkerと同様、
+ * サーバーのシステムタイムゾーンには依存しない)。
  *
  * @param {Date} now 現在時刻
- * @param {string} startTime "HH:MM"形式(例: "20:00")
- * @param {string} endTime "HH:MM"形式(例: "06:00")
+ * @param {string} startTime "HH:MM"形式・JST(例: "20:00")
+ * @param {string} endTime "HH:MM"形式・JST(例: "06:00")
  * @returns {boolean}
  */
 export function isWithinSilentTime(now, startTime, endTime) {
@@ -89,7 +120,9 @@ export function isWithinSilentTime(now, startTime, endTime) {
 
   const startMinutes = start.hour * 60 + start.minute;
   const endMinutes = end.hour * 60 + end.minute;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const jstView = toJstView(now);
+  const nowMinutes = jstView.getUTCHours() * 60 + jstView.getUTCMinutes();
 
   if (startMinutes === endMinutes) return false; // 開始=終了は「無効」扱い
 
