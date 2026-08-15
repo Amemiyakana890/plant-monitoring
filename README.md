@@ -139,6 +139,8 @@ C -->|API| E
 - ⬜ Push通知{(現状はアプリ内の通知一覧のみ)Firebaseを導入してから着手予定でFirebase Cloud Messaging(FCM)を使おうと思います}
 - ⬜ Bluetooth Low Energy(BLE)はFirebaseを導入してから着手予定
 - ⬜ v2でのFirebase移行(着手は本格的な見直しが済んでから)
+- ⬜ v2ではログイン機能、セキュリティを導入
+- ⬜ v2で複数植物・複数デバイス対応にする
 
 ---
 
