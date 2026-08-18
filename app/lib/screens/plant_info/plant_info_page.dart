@@ -156,103 +156,70 @@ class PlantInfoPage extends StatelessWidget {
         Text('植物情報', style: Theme.of(context).textTheme.headlineLarge),
         const SizedBox(height: AppSpacing.large),
         Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.medium),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.1),
-                  child: Icon(
-                    Icons.local_florist,
-                    size: 40,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              _PlantPhotoHeader(speciesKey: plant.speciesKey),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.medium),
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: const Text('植物名'),
+                      trailing: Text(
+                        plant.name,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      title: const Text('植物種'),
+                      trailing: Text(
+                        plant.speciesInfo.scientificName,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.medium),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit),
+                        label: const Text('植物名を編集する'),
+                        onPressed: () =>
+                            _showEditNameDialog(context, store, plant),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.small),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon:
+                            (store.isLoadingSpeciesCatalog ||
+                                store.isSelectingSpecies)
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.swap_horiz),
+                        label: const Text('植物を選択する'),
+                        onPressed:
+                            (store.isLoadingSpeciesCatalog ||
+                                store.isSelectingSpecies)
+                            ? null
+                            : () => _showSpeciesPicker(context, store, plant),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.medium),
-                ListTile(
-                  title: const Text('植物名'),
-                  trailing: Text(
-                    plant.name,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-                const Divider(),
-                ListTile(
-                  title: const Text('植物種'),
-                  trailing: Text(
-                    plant.speciesInfo.scientificName,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.medium),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.edit),
-                    label: const Text('植物名を編集する'),
-                    onPressed: () =>
-                        _showEditNameDialog(context, store, plant),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.small),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: (store.isLoadingSpeciesCatalog ||
-                            store.isSelectingSpecies)
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.swap_horiz),
-                    label: const Text('植物を選択する'),
-                    onPressed:
-                        (store.isLoadingSpeciesCatalog ||
-                            store.isSelectingSpecies)
-                        ? null
-                        : () => _showSpeciesPicker(context, store, plant),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.medium),
         _CareProfileCard(plant: plant),
-        const SizedBox(height: AppSpacing.medium),
-        // 現状は未接続でもほとんど意味を持たない情報のため、
-        // 主役の植物カードより控えめなトーン(輪郭のみ・淡色アイコン)にしている。
-        // デバイスペアリング機能の実装(要件定義書 F-07)に合わせて、
-        // 接続状況・バッテリー残量などを表示する作りに更新する想定。
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.medium),
-            side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
-          ),
-          child: ListTile(
-            leading: Icon(
-              Icons.memory,
-              color: AppColors.textPrimary.withValues(alpha: 0.4),
-            ),
-            title: Text(
-              '紐づくデバイス',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.textPrimary.withValues(alpha: 0.6),
-              ),
-            ),
-            subtitle: Text(
-              'デバイスの接続状況・バッテリー残量は設定画面で確認できます',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textPrimary.withValues(alpha: 0.45),
-              ),
-            ),
-          ),
-        ),
         const SizedBox(height: AppSpacing.medium),
         CareTipsCard(title: '${plant.name}のケアポイント', tips: _monsteraCareTips),
       ],
@@ -378,6 +345,64 @@ class _CareConditionTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 植物情報カード上部の写真ヘッダー。
+///
+/// `images/plant_photos/<species_key>.jpg`(または`.png`)が存在すればそれを
+/// 表示し、無ければグラデーション背景+アイコンのフォールバック表示にする
+/// (実機のネットワーク制限で実際の植物写真をこのプロジェクトに同梱できな
+/// かったため、写真は利用者が任意で追加できる形にしている。
+/// images/plant_photos/README.md参照)。
+///
+/// NOTE: フォルダ名を`assets/plants/`にしていた時期があったが、Flutter Web
+/// は配信時に自動で`assets/`という接頭辞を付けるため、フォルダ名自体が
+/// 「assets」から始まっていると`assets/assets/plants/...`のように二重になり
+/// 404になる不具合があった。それを避けるため`images/plant_photos/`という
+/// 「assets」を含まない名前に変更している。
+class _PlantPhotoHeader extends StatelessWidget {
+  final String? speciesKey;
+
+  const _PlantPhotoHeader({required this.speciesKey});
+
+  @override
+  Widget build(BuildContext context) {
+    final assetPath = 'images/plant_photos/${speciesKey ?? 'default'}.jpg';
+
+    return SizedBox(
+      height: 160,
+      width: double.infinity,
+      child: Image.asset(
+        assetPath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _PhotoFallback(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoFallback extends StatelessWidget {
+  final Color color;
+
+  const _PhotoFallback({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withValues(alpha: 0.12), color.withValues(alpha: 0.28)],
+        ),
+      ),
+      child: Center(
+        child: Icon(Icons.local_florist, size: 56, color: color.withValues(alpha: 0.55)),
       ),
     );
   }
