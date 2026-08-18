@@ -7,6 +7,7 @@ import '../models/environment_log.dart';
 import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
+import '../models/plant_species.dart';
 import 'plant_repository.dart';
 
 /// [PlantRepository]の本実装。Node.js + SQLiteサーバー(server/)と通信する。
@@ -56,7 +57,12 @@ class HttpPlantRepository implements PlantRepository {
   }
 
   @override
-  Future<Plant> updatePlant({String? name, String? species, int? deviceId}) async {
+  Future<Plant> updatePlant({
+    String? name,
+    String? species,
+    int? deviceId,
+    String? speciesKey,
+  }) async {
     final id = await _resolvePlantId();
     final uri = Uri.parse('$baseUrl/plants/$id');
     final res = await http.patch(
@@ -64,7 +70,12 @@ class HttpPlantRepository implements PlantRepository {
       headers: {'Content-Type': 'application/json'},
       // deviceId未指定時はnullを送るが、サーバー側はCOALESCEで現在値を
       // 維持するだけなので、既存の紐付けを壊すことはない(設計書5-2参照)。
-      body: jsonEncode({'name': name, 'species': species, 'device_id': deviceId}),
+      body: jsonEncode({
+        'name': name,
+        'species': species,
+        'device_id': deviceId,
+        'species_key': speciesKey,
+      }),
     );
     _ensureOk(res, 'PATCH /plants/$id');
     return Plant.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -199,6 +210,19 @@ class HttpPlantRepository implements PlantRepository {
     return NotificationSettings.fromJson(
       jsonDecode(res.body) as Map<String, dynamic>,
     );
+  }
+
+  // ---- 植物種カタログAPI(F-08・植物切り替え機能) ----
+
+  @override
+  Future<List<PlantSpecies>> fetchSpeciesCatalog() async {
+    final uri = Uri.parse('$baseUrl/species');
+    final res = await http.get(uri);
+    _ensureOk(res, 'GET /species');
+    final list = jsonDecode(res.body) as List<dynamic>;
+    return list
+        .map((e) => PlantSpecies.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   void _ensureOk(http.Response res, String label) {

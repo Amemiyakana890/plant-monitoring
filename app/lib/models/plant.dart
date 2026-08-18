@@ -1,4 +1,5 @@
 import 'environment_level.dart';
+import 'plant_species.dart';
 
 /// 植物の状態(サーバー側の判定ロジック(設計書5-7)に対応するコード値)
 enum PlantStatus {
@@ -70,6 +71,20 @@ class Plant {
   /// (widgets/plant_card.dart)から明示的に記録する。一度も記録が無ければnull。
   final String? lastWateredAt;
 
+  /// 選択されている植物種のキー(例: "monstera")。未選択ならnull
+  /// (F-08実装前に作成された植物、またはまだ一度も選択していない場合)。
+  final String? speciesKey;
+
+  /// 選択されている植物種の表示情報。speciesKeyが未選択でも、サーバー側で
+  /// デフォルト種(モンステラ)にフォールバックした値が必ず入っている
+  /// (server/utils/speciesCatalog.jsのgetSpeciesInfo参照)。
+  final PlantSpecies speciesInfo;
+
+  /// 今の季節・選択されている植物種に基づく「管理条件」
+  /// (植物情報ページの表示用、docs 3-1〜3-4章)。speciesInfoと同じく
+  /// 未選択でも常にフォールバック値が入っている。
+  final CareProfile careProfile;
+
   const Plant({
     required this.id,
     required this.name,
@@ -89,6 +104,23 @@ class Plant {
     this.illuminanceDailyAvg,
     this.illuminanceEvaluatedAt,
     this.lastWateredAt,
+    this.speciesKey,
+    this.speciesInfo = const PlantSpecies(
+      key: 'monstera',
+      name: 'モンステラ',
+      scientificName: 'サトイモ科モンステラ属',
+    ),
+    this.careProfile = const CareProfile(
+      season: 'summer',
+      seasonLabel: '夏',
+      soilHealthyMin: 40,
+      soilNeedsCareMax: 20,
+      temperatureHealthyMin: 18,
+      temperatureHealthyMax: 30,
+      humidityHealthyMin: 60,
+      humidityHealthyMax: 80,
+      illuminanceHealthyMin: 1000,
+    ),
   });
 
   /// 画面表示用に、サーバーのUTC文字列(例: "2026-08-04T01:08:52Z")を
@@ -169,6 +201,9 @@ class Plant {
     int? deviceId,
     bool clearDeviceId = false,
     String? lastWateredAt,
+    String? speciesKey,
+    PlantSpecies? speciesInfo,
+    CareProfile? careProfile,
   }) {
     return Plant(
       id: id,
@@ -189,6 +224,9 @@ class Plant {
       illuminanceDailyAvg: illuminanceDailyAvg,
       illuminanceEvaluatedAt: illuminanceEvaluatedAt,
       lastWateredAt: lastWateredAt ?? this.lastWateredAt,
+      speciesKey: speciesKey ?? this.speciesKey,
+      speciesInfo: speciesInfo ?? this.speciesInfo,
+      careProfile: careProfile ?? this.careProfile,
     );
   }
 
@@ -224,6 +262,27 @@ class Plant {
       illuminanceDailyAvg: (json['illuminance_daily_avg'] as num?)?.toDouble(),
       illuminanceEvaluatedAt: json['illuminance_evaluated_at'] as String?,
       lastWateredAt: json['last_watered_at'] as String?,
+      speciesKey: json['species_key'] as String?,
+      speciesInfo: json['species_info'] is Map<String, dynamic>
+          ? PlantSpecies.fromJson(json['species_info'] as Map<String, dynamic>)
+          : const PlantSpecies(
+              key: 'monstera',
+              name: 'モンステラ',
+              scientificName: 'サトイモ科モンステラ属',
+            ),
+      careProfile: json['care_profile'] is Map<String, dynamic>
+          ? CareProfile.fromJson(json['care_profile'] as Map<String, dynamic>)
+          : const CareProfile(
+              season: 'summer',
+              seasonLabel: '夏',
+              soilHealthyMin: 40,
+              soilNeedsCareMax: 20,
+              temperatureHealthyMin: 18,
+              temperatureHealthyMax: 30,
+              humidityHealthyMin: 60,
+              humidityHealthyMax: 80,
+              illuminanceHealthyMin: 1000,
+            ),
     );
   }
 

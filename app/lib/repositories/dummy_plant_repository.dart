@@ -6,6 +6,7 @@ import '../models/environment_log.dart';
 import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
+import '../models/plant_species.dart';
 import 'plant_repository.dart';
 
 /// [PlantRepository]のダミー実装。
@@ -61,9 +62,28 @@ class DummyPlantRepository implements PlantRepository {
   }
 
   @override
-  Future<Plant> updatePlant({String? name, String? species, int? deviceId}) async {
+  Future<Plant> updatePlant({
+    String? name,
+    String? species,
+    int? deviceId,
+    String? speciesKey,
+  }) async {
     await _simulateNetwork();
-    _plant = _plant.copyWith(name: name, species: species, deviceId: deviceId);
+    if (speciesKey != null) {
+      final entry = _dummySpeciesCatalog.firstWhere(
+        (s) => s.key == speciesKey,
+        orElse: () => throw StateError('species not found: $speciesKey'),
+      );
+      _plant = _plant.copyWith(
+        name: name,
+        deviceId: deviceId,
+        speciesKey: speciesKey,
+        speciesInfo: entry,
+        species: entry.scientificName,
+      );
+    } else {
+      _plant = _plant.copyWith(name: name, species: species, deviceId: deviceId);
+    }
     return _plant;
   }
 
@@ -259,5 +279,21 @@ class DummyPlantRepository implements PlantRepository {
     await _simulateNetwork();
     _notificationSettings = settings;
     return _notificationSettings;
+  }
+
+  // ---- 植物種カタログAPI(F-08・植物切り替え機能、ダミー実装) ----
+
+  static const List<PlantSpecies> _dummySpeciesCatalog = [
+    PlantSpecies(
+      key: 'monstera',
+      name: 'モンステラ',
+      scientificName: 'サトイモ科モンステラ属',
+    ),
+  ];
+
+  @override
+  Future<List<PlantSpecies>> fetchSpeciesCatalog() async {
+    await _simulateNetwork();
+    return _dummySpeciesCatalog;
   }
 }

@@ -5,6 +5,7 @@ import {
   classifyHumidityDailyAverage,
   classifyIlluminanceDailyAverage,
 } from '../utils/plantStatus.js';
+import { getSpeciesThresholds } from '../utils/speciesCatalog.js';
 import { validateSensorPayload } from '../utils/validation.js';
 import { sendError } from '../utils/errors.js';
 import {
@@ -181,7 +182,7 @@ function evaluateTemperatureNotificationCandidate(previousStatus, newStatus, ena
 //   ステータスはこのtick終了時点での最新値(評価しなかった場合はplantの
 //   既存値をそのまま返す)。candidatesは呼び出し元で他項目とまとめて
 //   pickWorstCandidate()にかける(6-3章の1件集約)。
-function runDailyEvaluations(plant, now, settings) {
+function runDailyEvaluations(plant, now, settings, thresholds) {
   let humidityDailyStatus = plant.humidity_daily_status;
   let illuminanceDailyStatus = plant.illuminance_daily_status;
   const candidates = [];
@@ -193,7 +194,7 @@ function runDailyEvaluations(plant, now, settings) {
     // 直近24時間に湿度データが1件もない場合はAVGがnullになる。
     // 評価不能なのでevaluated_atも更新せず、次回受信時に再試行する。
     if (avgHumidity !== null && sampleCount > 0) {
-      humidityDailyStatus = classifyHumidityDailyAverage(avgHumidity);
+      humidityDailyStatus = classifyHumidityDailyAverage(avgHumidity, thresholds);
       updateHumidityDailyStmt.run(
         humidityDailyStatus,
         avgHumidity,
@@ -216,7 +217,7 @@ function runDailyEvaluations(plant, now, settings) {
       selectIlluminanceDaytimeAverageStmt.get(plant.id);
 
     if (avgIlluminance !== null && sampleCount > 0) {
-      illuminanceDailyStatus = classifyIlluminanceDailyAverage(avgIlluminance);
+      illuminanceDailyStatus = classifyIlluminanceDailyAverage(avgIlluminance, thresholds);
       updateIlluminanceDailyStmt.run(
         illuminanceDailyStatus,
         avgIlluminance,
@@ -383,6 +384,11 @@ export function receiveSensorData(req, res) {
     illuminance ?? null,
   );
 
+  // 植物種ごとの閾値プロファイル(F-08・植物切り替え機能)。
+  // species_key未設定(移行前の植物)の場合はデフォルト種(モンステラ)に
+  // フォールバックする(getSpeciesThresholds参照)。
+  const thresholds = getSpeciesThresholds(plant.species_key);
+
   // 土壌水分: 季節別閾値・継続時間・水やり緩和を考慮して判定する(docs 3-3章)。
   // 温度(resolveTemperatureStatus)と同じく「バッジ自体を継続時間で遅らせる」
   // 方式に統一している(一時的なブレで一喜一憂させないという3-3章の意図を、
@@ -405,6 +411,7 @@ export function receiveSensorData(req, res) {
     previousCautionSince: plant.soil_caution_since,
     now,
     lastWateredAt: latestWateringLog?.watered_at ?? null,
+    thresholds,
   });
   const soilStatus = resolvedSoil.status;
   updateStatusStmt.run(
@@ -427,6 +434,7 @@ export function receiveSensorData(req, res) {
       temperature,
       plant.temp_out_of_range_since,
       now,
+      thresholds,
     );
     tempStatus = resolved.status;
     updateTemperatureStmt.run(
@@ -446,7 +454,7 @@ export function receiveSensorData(req, res) {
     humidityDailyStatus,
     illuminanceDailyStatus,
     candidates: dailyCandidates,
-  } = runDailyEvaluations(plant, now, settings);
+  } = runDailyEvaluations(plant, now, settings, thresholds);
 
   // ここまでで集まった「このtickで悪化した」候補をまとめて1件に絞る
   // (docs 6-3章: 複数項目が同時に悪化しても通知は乱発しない)。

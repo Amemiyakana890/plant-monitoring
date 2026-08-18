@@ -1,5 +1,8 @@
 import db from '../database/db.js';
 import { sendError } from '../utils/errors.js';
+import { getMonthInJst } from '../utils/time.js';
+import { getSeasonalSoilThresholds, getSoilSeasonForMonth } from '../utils/plantStatus.js';
+import { getSpeciesThresholds, getSpeciesInfo, isValidSpeciesKey } from '../utils/speciesCatalog.js';
 
 const insertPlantStmt = db.prepare(
   `INSERT INTO plants (name, species, image, device_id) VALUES (?, ?, ?, ?)`,
@@ -10,7 +13,12 @@ const selectAllPlantsStmt = db.prepare(`SELECT * FROM plants ORDER BY id`);
 const selectDeviceStmt = db.prepare(`SELECT * FROM devices WHERE id = ?`);
 
 const updatePlantStmt = db.prepare(
-  `UPDATE plants SET name = COALESCE(?, name), species = COALESCE(?, species), device_id = COALESCE(?, device_id) WHERE id = ?`,
+  `UPDATE plants
+   SET name = COALESCE(?, name),
+       species = COALESCE(?, species),
+       species_key = COALESCE(?, species_key),
+       device_id = COALESCE(?, device_id)
+   WHERE id = ?`,
 );
 
 const deletePlantStmt = db.prepare(`DELETE FROM plants WHERE id = ?`);
@@ -30,6 +38,39 @@ const selectLatestWateringLogStmt = db.prepare(
 const insertWateringLogStmt = db.prepare(
   `INSERT INTO watering_logs (plant_id) VALUES (?)`,
 );
+
+const SEASON_LABELS = { summer: '夏', winter: '冬', default: '春秋' };
+
+/**
+ * 植物種(species_key)から、今この瞬間の「管理条件」を算出する
+ * (植物情報ページの「この植物の管理条件」カード向け、docs 3-1〜3-4章)。
+ * 季節は現在時刻(JST)から自動判定する(手動切り替えは行わない方針で確定)。
+ * 「水やり目安(日数)」は一度検討したが分かりやすさの観点でしっくりこず、
+ * 今回は含めないことにした。
+ */
+function buildCareProfile(speciesKey) {
+  const thresholds = getSpeciesThresholds(speciesKey);
+  const month = getMonthInJst(new Date());
+  const seasonKey = getSoilSeasonForMonth(month);
+  const soil = getSeasonalSoilThresholds(month, thresholds);
+
+  return {
+    season: seasonKey,
+    season_label: SEASON_LABELS[seasonKey],
+    soil: { healthy_min: soil.healthy, needs_care_max: soil.needsCare },
+    temperature: {
+      healthy_min: thresholds.temperature.healthyMin,
+      healthy_max: thresholds.temperature.healthyMax,
+    },
+    humidity: {
+      healthy_min: thresholds.humidity.healthyMin,
+      healthy_max: thresholds.humidity.healthyMax,
+    },
+    illuminance: {
+      healthy_min: thresholds.illuminance.healthyMin,
+    },
+  };
+}
 
 /**
  * plants テーブルの1行と、直近の sensor_logs 1件を合成して
@@ -52,8 +93,6 @@ function toPlantResponse(plantRow) {
     illuminance: latestLog?.illuminance ?? null,
     updated_at: latestLog?.created_at ?? null,
     // 温度・湿度・照度の状態判定・通知ロジック(docs/status-notification-design.md)。
-    // Flutter側は現時点で未対応のため無視されるだけだが、今後ホーム画面に
-    // 反映する際にそのまま使えるようレスポンスには含めておく。
     temp_status: plantRow.temp_status ?? null,
     humidity_daily_status: plantRow.humidity_daily_status ?? null,
     humidity_daily_avg: plantRow.humidity_daily_avg ?? null,
@@ -61,6 +100,12 @@ function toPlantResponse(plantRow) {
     illuminance_daily_avg: plantRow.illuminance_daily_avg ?? null,
     // 水やり記録(4-2章)。まだ一度も記録が無い植物はnullになる。
     last_watered_at: latestWateringLog?.watered_at ?? null,
+    // 植物種選択(F-08・植物切り替え機能)。species_keyが未設定(このマイグレーション
+    // 以前に作成された植物)でも、species_info/care_profileはデフォルト種
+    // (モンステラ)にフォールバックして返す(getSpeciesInfo/getSpeciesThresholds参照)。
+    species_key: plantRow.species_key ?? null,
+    species_info: getSpeciesInfo(plantRow.species_key),
+    care_profile: buildCareProfile(plantRow.species_key),
   };
 }
 
@@ -125,8 +170,14 @@ export function getPlant(req, res) {
 }
 
 // PATCH /plants/:id (設計書5-2)
-// 編集可能なのは name / species / device_id。未指定のフィールドは現在の値を保持する。
+// 編集可能なのは name / species_key / device_id。未指定のフィールドは現在の値を保持する。
 // device_idはデバイスペアリング完了後にここで紐付ける想定(POST /devices/pairとは別操作)。
+//
+// species_key(植物種の選択、F-08・植物切り替え機能)を指定した場合、
+// 表示用のspecies(植物種テキスト、例:「サトイモ科モンステラ属」)は
+// カタログの値で自動的に上書きする。植物名(name、ニックネーム)は
+// species_keyの指定と完全に独立しており、別途自由入力できる
+// (「植物名は自由記入、植物種はシステム的に選択する」という運用のため)。
 export function updatePlant(req, res) {
   const id = Number(req.params.id);
   const existing = selectPlantStmt.get(id);
@@ -135,18 +186,25 @@ export function updatePlant(req, res) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
   }
 
-  const { name, species, device_id } = req.body ?? {};
+  const { name, species, species_key, device_id } = req.body ?? {};
 
   // JSONで明示的に`null`を送ってきた場合(未指定の意図)も「更新しない」扱いに
   // したいので、undefinedだけでなくnullも許容する(device_idの判定と揃える)。
-  // これを`!== undefined`だけにしていると、クライアントが
-  // {"name": null, "device_id": 1} のように一部フィールドだけ更新したい時に
-  // 誤って400 VALIDATION_ERRORになってしまう(実際に発生した不具合)。
   if (name !== undefined && name !== null && (typeof name !== 'string' || name.trim() === '')) {
     return sendError(res, 400, 'VALIDATION_ERROR', 'name は空でない文字列で指定してください');
   }
   if (species !== undefined && species !== null && typeof species !== 'string') {
     return sendError(res, 400, 'VALIDATION_ERROR', 'species は文字列で指定してください');
+  }
+  if (species_key !== undefined && species_key !== null) {
+    if (typeof species_key !== 'string' || !isValidSpeciesKey(species_key)) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        '指定された植物種(species_key)が見つかりません',
+      );
+    }
   }
   if (device_id !== undefined && device_id !== null) {
     const device = selectDeviceStmt.get(Number(device_id));
@@ -155,7 +213,20 @@ export function updatePlant(req, res) {
     }
   }
 
-  updatePlantStmt.run(name ?? null, species ?? null, device_id ?? null, id);
+  // species_keyが指定された場合は、表示用のspeciesテキストをカタログの値で
+  // 自動的に決める(bodyで別途species文字列が送られてきても、species_keyを優先する)。
+  const resolvedSpecies =
+    species_key !== undefined && species_key !== null
+      ? getSpeciesInfo(species_key).scientific_name
+      : (species ?? null);
+
+  updatePlantStmt.run(
+    name ?? null,
+    resolvedSpecies,
+    species_key ?? null,
+    device_id ?? null,
+    id,
+  );
   const updated = selectPlantStmt.get(id);
   res.json(toPlantResponse(updated));
 }

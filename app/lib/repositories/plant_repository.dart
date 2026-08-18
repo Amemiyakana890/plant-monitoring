@@ -3,6 +3,7 @@ import '../models/environment_log.dart';
 import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
+import '../models/plant_species.dart';
 
 /// アプリが必要とするデータ取得・更新をまとめたインターフェース。
 /// 設計書5章のAPI設計に対応させており、実装(現状は[DummyPlantRepository])を
@@ -17,7 +18,15 @@ abstract class PlantRepository {
   /// 紐付け解除はunpairDevice()(DELETE /devices/:id)経由で行う
   /// (サーバー側のON DELETE SET NULLで自動的にdevice_idがnullに戻るため、
   /// updatePlant側にnull化用の引数は用意していない)。
-  Future<Plant> updatePlant({String? name, String? species, int? deviceId});
+  /// [speciesKey]は植物種の選択(F-08・植物切り替え機能)。指定すると
+  /// サーバー側でspeciesテキスト(表示用の植物種名)も自動的に更新される
+  /// (name(ニックネーム)とは独立して扱われる)。
+  Future<Plant> updatePlant({
+    String? name,
+    String? species,
+    int? deviceId,
+    String? speciesKey,
+  });
 
   /// GET /history/:plantId?range= 相当
   Future<List<EnvironmentLog>> fetchHistory({String range = '7d'});
@@ -53,4 +62,8 @@ abstract class PlantRepository {
   /// POST /plants/:id/waterings 相当(docs/status-notification-design.md 4-2章)。
   /// ホーム画面の「水やりした」ボタン(widgets/plant_card.dart)から呼ぶ。
   Future<Plant> recordWatering(int plantId);
+
+  /// GET /species 相当(F-08・植物切り替え機能)。
+  /// 植物情報ページの「植物を選択する」で表示する選択肢一覧。
+  Future<List<PlantSpecies>> fetchSpeciesCatalog();
 }

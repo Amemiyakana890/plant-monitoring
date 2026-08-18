@@ -4,6 +4,7 @@ import 'package:plant_monitoring_app/models/environment_log.dart';
 import 'package:plant_monitoring_app/models/notification_settings.dart';
 import 'package:plant_monitoring_app/models/plant.dart';
 import 'package:plant_monitoring_app/models/plant_notification.dart';
+import 'package:plant_monitoring_app/models/plant_species.dart';
 import 'package:plant_monitoring_app/repositories/plant_repository.dart';
 import 'package:plant_monitoring_app/state/plant_store.dart';
 
@@ -45,9 +46,27 @@ class FakePlantRepository implements PlantRepository {
   }
 
   @override
-  Future<Plant> updatePlant({String? name, String? species, int? deviceId}) async {
+  Future<Plant> updatePlant({
+    String? name,
+    String? species,
+    int? deviceId,
+    String? speciesKey,
+  }) async {
+    if (throwOnUpdatePlant) {
+      throw StateError('network error');
+    }
+    if (speciesKey != null) {
+      final entry = speciesCatalog.firstWhere((s) => s.key == speciesKey);
+      return plant.copyWith(
+        speciesKey: speciesKey,
+        speciesInfo: entry,
+        species: entry.scientificName,
+      );
+    }
     return plant.copyWith(name: name, species: species, deviceId: deviceId);
   }
+
+  bool throwOnUpdatePlant = false;
 
   @override
   Future<List<EnvironmentLog>> fetchHistory({String range = '7d'}) async {
@@ -144,6 +163,25 @@ class FakePlantRepository implements PlantRepository {
     }
     recordedWateringAt = '2026-08-12T12:00:00Z';
     return plant.copyWith(lastWateredAt: recordedWateringAt);
+  }
+
+  // ---- 植物種カタログAPI(F-08・植物切り替え機能) ----
+
+  List<PlantSpecies> speciesCatalog = const [
+    PlantSpecies(
+      key: 'monstera',
+      name: 'モンステラ',
+      scientificName: 'サトイモ科モンステラ属',
+    ),
+  ];
+  bool throwOnFetchSpeciesCatalog = false;
+
+  @override
+  Future<List<PlantSpecies>> fetchSpeciesCatalog() async {
+    if (throwOnFetchSpeciesCatalog) {
+      throw StateError('network error');
+    }
+    return speciesCatalog;
   }
 }
 

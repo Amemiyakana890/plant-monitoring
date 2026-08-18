@@ -7,6 +7,7 @@ import '../models/environment_log.dart';
 import '../models/notification_settings.dart';
 import '../models/plant.dart';
 import '../models/plant_notification.dart';
+import '../models/plant_species.dart';
 import '../repositories/plant_repository.dart';
 
 /// アプリ全体で共有する状態をまとめたストア。
@@ -27,6 +28,7 @@ class PlantStore extends ChangeNotifier {
   List<PlantNotification> notifications = [];
   List<Device> devices = [];
   NotificationSettings? notificationSettings;
+  List<PlantSpecies> speciesCatalog = [];
 
   bool isLoadingPlant = false;
   bool isLoadingHistory = false;
@@ -36,6 +38,8 @@ class PlantStore extends ChangeNotifier {
   bool isLoadingNotificationSettings = false;
   bool isSavingNotificationSettings = false;
   bool isRecordingWatering = false;
+  bool isLoadingSpeciesCatalog = false;
+  bool isSelectingSpecies = false;
 
   // データの種類ごとにエラーを分ける。1つの errorMessage にまとめると、
   // 例えば履歴取得の失敗が通知一覧のエラー表示を上書きしてしまうため。
@@ -46,6 +50,7 @@ class PlantStore extends ChangeNotifier {
   String? pairErrorMessage;
   String? notificationSettingsErrorMessage;
   String? wateringErrorMessage;
+  String? speciesCatalogErrorMessage;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
@@ -123,10 +128,18 @@ class PlantStore extends ChangeNotifier {
 
   /// 成功時はtrue、失敗時はfalseを返す。呼び出し側(ダイアログなど)は
   /// これを見て、保存失敗をユーザーに伝えるかどうかを判断できる。
-  Future<bool> updatePlant({String? name, String? species}) async {
+  ///
+  /// [speciesKey]は植物種の選択(F-08・植物切り替え機能)専用。
+  /// nameとは独立して扱われる(「植物名は自由入力、植物種はシステム的に
+  /// 選択する」という運用のため。screens/plant_info/plant_info_page.dart参照)。
+  Future<bool> updatePlant({String? name, String? species, String? speciesKey}) async {
     errorMessage = null;
     try {
-      plant = await _repository.updatePlant(name: name, species: species);
+      plant = await _repository.updatePlant(
+        name: name,
+        species: species,
+        speciesKey: speciesKey,
+      );
       notifyListeners();
       return true;
     } catch (_) {
@@ -325,6 +338,41 @@ class PlantStore extends ChangeNotifier {
       return false;
     } finally {
       isRecordingWatering = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- 植物種カタログ・切り替え(F-08・植物切り替え機能) ----
+
+  Future<void> loadSpeciesCatalog() async {
+    isLoadingSpeciesCatalog = true;
+    speciesCatalogErrorMessage = null;
+    notifyListeners();
+    try {
+      speciesCatalog = await _repository.fetchSpeciesCatalog();
+    } catch (_) {
+      speciesCatalogErrorMessage = '植物の選択肢を取得できませんでした';
+    } finally {
+      isLoadingSpeciesCatalog = false;
+      notifyListeners();
+    }
+  }
+
+  /// 植物情報ページの「植物を選択する」から呼ぶ。植物名(ニックネーム)には
+  /// 触れず、植物種(species_key)だけを切り替える。
+  /// 成功時はtrue、失敗時はfalseを返す。
+  Future<bool> selectSpecies(String speciesKey) async {
+    isSelectingSpecies = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      plant = await _repository.updatePlant(speciesKey: speciesKey);
+      return true;
+    } catch (_) {
+      errorMessage = '植物種を変更できませんでした';
+      return false;
+    } finally {
+      isSelectingSpecies = false;
       notifyListeners();
     }
   }

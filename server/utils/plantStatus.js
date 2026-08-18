@@ -4,9 +4,6 @@
  *   thirsty(少し乾いています) : 20 <= soil < 40
  *   dry(乾燥しています)  : soil < 20
  *
- * 閾値は将来的に植物種ごとに変える可能性があるため(設計書5-7の注記)、
- * ここに集約しておき、変更が必要になったらこの関数だけ直せばよいようにしている。
- *
  * NOTE: 季節別閾値・継続時間・水やり緩和を考慮した版は下部の
  * resolveSoilStatus()を参照。この determineStatus() 自体は
  * 「瞬間値だけを見る」古い版としてテスト・後方互換のために残しているが、
@@ -19,36 +16,44 @@ export function determineStatus(soil) {
   return 'dry';
 }
 
-// 土壌水分の季節別閾値・継続時間・水やり緩和(docs/status-notification-design.md 3-3章)。
+// 植物種ごとの閾値プロファイル(docs/status-notification-design.md 3-1〜3-4章)。
 //
-// ★モンステラ専用の暫定値★
-// v1は1植物(モンステラ)のみを管理する単独構成のため定数として持たせているが、
-// 将来の複数植物対応(企画書11章)時には、この閾値テーブル自体を植物種ごとの
-// マスタデータ(例: species_thresholdsテーブル)に置き換える前提。
-// そのときにこの関数群のシグネチャ(month, thresholdsを渡す形)を大きく
-// 変えずに済むよう、閾値を1箇所(MONSTERA_SEASONAL_SOIL_THRESHOLDS)に
-// まとめてある。
-const MONSTERA_SEASONAL_SOIL_THRESHOLDS = {
-  // 夏(6〜9月): 蒸散が多く乾きやすいため、他の季節より高めの閾値。
-  summer: { healthy: 40, needsCare: 20 }, // 注意ゾーン: 20% <= soil < 40%
-  // 冬(12〜2月): 休眠期で水やり頻度を落とすため、低めの閾値。
-  winter: { healthy: 30, needsCare: 15 }, // 注意ゾーン: 15% <= soil < 30%
-  // 春・秋(上記以外の月): 夏と冬の中間的な閾値。
-  default: { healthy: 35, needsCare: 18 }, // 注意ゾーン: 18% <= soil < 35%
+// v1はモンステラ1種のみを扱うが、植物登録画面(F-08)・植物切り替え機能の
+// 実装に伴い、閾値を「渡された値を使うだけ」の関数群に変更した
+// (以前はモンステラの数値がすべての判定関数に直接埋め込まれていた)。
+// 実際に植物ごとの値を引くカタログは server/utils/speciesCatalog.js を参照。
+// このファイルはあくまで「プロファイルを渡されたら判定する」ロジックの置き場所。
+//
+// MONSTERA_THRESHOLDSはモンステラの実測に基づく値そのもの
+// (これまでの数値から変更なし)。デフォルト・後方互換用としてここに残し、
+// speciesCatalog.jsがこれをそのままカタログに登録する形にしている。
+export const MONSTERA_THRESHOLDS = {
+  temperature: { healthyMin: 18, healthyMax: 30, dangerMin: 10, dangerMax: 35 },
+  humidity: { healthyMin: 60, healthyMax: 80, needsCareMin: 40, needsCareMax: 90 },
+  illuminance: { healthyMin: 1000, cautionMin: 500 },
+  soil: {
+    // 夏(6〜9月): 蒸散が多く乾きやすいため、他の季節より高めの閾値。
+    summer: { healthy: 40, needsCare: 20 }, // 注意ゾーン: 20% <= soil < 40%
+    // 冬(12〜2月): 休眠期で水やり頻度を落とすため、低めの閾値。
+    winter: { healthy: 30, needsCare: 15 }, // 注意ゾーン: 15% <= soil < 30%
+    // 春・秋(上記以外の月): 夏と冬の中間的な閾値。
+    default: { healthy: 35, needsCare: 18 }, // 注意ゾーン: 18% <= soil < 35%
+  },
 };
 
 const SUMMER_MONTHS = [6, 7, 8, 9];
 const WINTER_MONTHS = [12, 1, 2];
 
-function getSoilSeasonForMonth(month) {
+/** 指定した月(1〜12)が季節別閾値のどの区分(夏/冬/春秋)に該当するかを返す。 */
+export function getSoilSeasonForMonth(month) {
   if (SUMMER_MONTHS.includes(month)) return 'summer';
   if (WINTER_MONTHS.includes(month)) return 'winter';
   return 'default';
 }
 
-/** 指定した月(1〜12)の季節別閾値を返す。 */
-export function getSeasonalSoilThresholds(month) {
-  return MONSTERA_SEASONAL_SOIL_THRESHOLDS[getSoilSeasonForMonth(month)];
+/** 指定した月(1〜12)・閾値プロファイルから、季節別の土壌水分閾値を返す。 */
+export function getSeasonalSoilThresholds(month, thresholds = MONSTERA_THRESHOLDS) {
+  return thresholds.soil[getSoilSeasonForMonth(month)];
 }
 
 /**
@@ -57,8 +62,8 @@ export function getSeasonalSoilThresholds(month) {
  *   caution_zone    : healthy未満〜needsCare以上(継続時間で healthy→thirsty に格上げ)
  *   needs_care_zone : 季節別のneedsCare閾値未満(水やり緩和が無ければ即座にdry)
  */
-export function classifySoilZone(soil, month) {
-  const { healthy, needsCare } = getSeasonalSoilThresholds(month);
+export function classifySoilZone(soil, month, thresholds = MONSTERA_THRESHOLDS) {
+  const { healthy, needsCare } = getSeasonalSoilThresholds(month, thresholds);
   if (soil >= healthy) return 'healthy';
   if (soil < needsCare) return 'needs_care_zone';
   return 'caution_zone';
@@ -75,13 +80,9 @@ const SOIL_WATERING_RELIEF_WINDOW_MS = 2 * 60 * 60 * 1000;
  * - healthyゾーン: 即座に'healthy'(継続時間の記録もリセット)。
  * - caution_zone: ゾーンに入ってすぐは見た目上'healthy'のまま
  *   (バッジ・通知とも据え置き)。6時間以上継続して初めて'thirsty'に切り替わる。
- *   (温度(resolveTemperatureStatus)と同じ「バッジ自体を継続時間で遅らせる」方式。
- *   通知だけを遅らせるサイレントタイムとは別の考え方だが、これは一時的なブレで
- *   一喜一憂させないという季節別閾値の意図そのものであるため。)
  * - needs_care_zone: 原則即座に'dry'。ただし前回の水やりから2時間以内なら、
  *   センサーの応答遅れ・水が浸透しきっていないだけの可能性が高いため
- *   'thirsty'に緩和する(注意ゾーンには緩和を適用しない。継続時間による
- *   6時間の猶予が既にあるため)。
+ *   'thirsty'に緩和する。
  *
  * @param {object} params
  * @param {number} params.soil 現在の土壌水分(%)
@@ -89,10 +90,18 @@ const SOIL_WATERING_RELIEF_WINDOW_MS = 2 * 60 * 60 * 1000;
  * @param {string|null} params.previousCautionSince 前回caution_zoneに入り続けている開始時刻(ISO8601)
  * @param {Date} params.now 現在時刻
  * @param {string|null} params.lastWateredAt 直近の水やり記録時刻(ISO8601、docs 4-2章)。未記録ならnull。
+ * @param {object} [params.thresholds] 植物種ごとの閾値プロファイル(省略時はモンステラ)
  * @returns {{ status: 'healthy'|'thirsty'|'dry', cautionSince: Date|null }}
  */
-export function resolveSoilStatus({ soil, month, previousCautionSince, now, lastWateredAt }) {
-  const zone = classifySoilZone(soil, month);
+export function resolveSoilStatus({
+  soil,
+  month,
+  previousCautionSince,
+  now,
+  lastWateredAt,
+  thresholds = MONSTERA_THRESHOLDS,
+}) {
+  const zone = classifySoilZone(soil, month, thresholds);
 
   if (zone === 'healthy') {
     return { status: 'healthy', cautionSince: null };
@@ -129,17 +138,18 @@ const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 /**
  * 温度の現在値がどのゾーンにあるかを判定する(docs 3-1)。
- *   healthy      : 18〜30℃(適正)
+ *   healthy      : thresholds.temperature.healthyMin〜healthyMax(適正)
  *   caution_zone : 上記の外側だが危険域ではない(継続時間で healthy→caution→needs_care と格上げ)
- *   danger       : 10℃未満 または 35℃以上(継続時間を問わず即座にneeds_care)
+ *   danger       : dangerMin未満 または dangerMax以上(継続時間を問わず即座にneeds_care)
  *
  * 元のdocs記載では「10〜15℃」がcaution_zoneにもdangerにも該当しない
- * 抜け穴になっていたため、caution_zoneの下限を15℃ではなく10℃に広げて
- * 埋めている(この関数を実装する過程で発見・修正)。
+ * 抜け穴になっていたため、caution_zoneの下限をhealthyMinではなくdangerMinまで
+ * 広げて埋めている(この関数を実装する過程で発見・修正)。
  */
-export function classifyTemperatureZone(temperature) {
-  if (temperature < 10 || temperature >= 35) return 'danger';
-  if (temperature < 18 || temperature > 30) return 'caution_zone';
+export function classifyTemperatureZone(temperature, thresholds = MONSTERA_THRESHOLDS) {
+  const { healthyMin, healthyMax, dangerMin, dangerMax } = thresholds.temperature;
+  if (temperature < dangerMin || temperature >= dangerMax) return 'danger';
+  if (temperature < healthyMin || temperature > healthyMax) return 'caution_zone';
   return 'healthy';
 }
 
@@ -150,12 +160,18 @@ export function classifyTemperatureZone(temperature) {
  * @param {string|null} previousSince 前回このゾーンに入った時刻(ISO8601)。
  *   healthy状態からcaution_zoneに入った瞬間はnullを渡す想定。
  * @param {Date} now 現在時刻(テスト容易性のため引数で受け取る)
+ * @param {object} [thresholds] 植物種ごとの閾値プロファイル(省略時はモンステラ)
  * @returns {{ status: 'healthy'|'caution'|'needs_care', since: Date|null }}
  *   since: caution_zoneに入り続けている開始時刻。healthy/dangerに至った場合はnull
  *   (healthyはリセット、dangerは継続時間を問わないため管理不要)。
  */
-export function resolveTemperatureStatus(temperature, previousSince, now = new Date()) {
-  const zone = classifyTemperatureZone(temperature);
+export function resolveTemperatureStatus(
+  temperature,
+  previousSince,
+  now = new Date(),
+  thresholds = MONSTERA_THRESHOLDS,
+) {
+  const zone = classifyTemperatureZone(temperature, thresholds);
 
   if (zone === 'danger') {
     return { status: 'needs_care', since: null };
@@ -178,30 +194,31 @@ export function resolveTemperatureStatus(temperature, previousSince, now = new D
 
 /**
  * 湿度の24時間平均から日次ステータスを判定する(docs 3-2)。
- *   healthy    : 60〜80%
- *   caution    : 40〜60% または 80〜90%
- *   needs_care : 40%未満 または 90%超
- *
- * 90%超をneeds_careに含めているのは、元のdocs記載(「40%未満などが長時間継続」)
- * には上限側の要ケア条件が明記されていなかったため、多湿による根腐れ・カビ
- * リスクを考慮しこの関数の実装時に補った判断。要すり合わせ。
+ *   healthy    : thresholds.humidity.healthyMin〜healthyMax
+ *   caution    : healthyMinとneedsCareMinの間 または healthyMaxとneedsCareMaxの間
+ *   needs_care : needsCareMin未満 または needsCareMax超
  */
-export function classifyHumidityDailyAverage(averageHumidity) {
-  if (averageHumidity < 40 || averageHumidity > 90) return 'needs_care';
-  if (averageHumidity < 60 || averageHumidity > 80) return 'caution';
+export function classifyHumidityDailyAverage(averageHumidity, thresholds = MONSTERA_THRESHOLDS) {
+  const { healthyMin, healthyMax, needsCareMin, needsCareMax } = thresholds.humidity;
+  if (averageHumidity < needsCareMin || averageHumidity > needsCareMax) return 'needs_care';
+  if (averageHumidity < healthyMin || averageHumidity > healthyMax) return 'caution';
   return 'healthy';
 }
 
 /**
  * 照度の「昼間(6:00〜18:00)平均」から日次ステータスを判定する(docs 3-4)。
- *   healthy    : 1,000〜10,000 lux
- *   caution    : 500〜1,000 lux
- *   needs_care : 500 lux未満
+ *   healthy    : thresholds.illuminance.healthyMin 以上
+ *   caution    : cautionMin以上healthyMin未満
+ *   needs_care : cautionMin未満
  *
  * 上限側(直射日光が強すぎるケース)は docs 3-4 のTODO通り今回は未対応。
  */
-export function classifyIlluminanceDailyAverage(averageIlluminance) {
-  if (averageIlluminance < 500) return 'needs_care';
-  if (averageIlluminance < 1000) return 'caution';
+export function classifyIlluminanceDailyAverage(
+  averageIlluminance,
+  thresholds = MONSTERA_THRESHOLDS,
+) {
+  const { healthyMin, cautionMin } = thresholds.illuminance;
+  if (averageIlluminance < cautionMin) return 'needs_care';
+  if (averageIlluminance < healthyMin) return 'caution';
   return 'healthy';
 }

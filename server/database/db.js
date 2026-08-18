@@ -217,4 +217,18 @@ for (const column of notificationToggleColumns) {
   }
 }
 
+// マイグレーション: 植物種の選択(F-08 植物登録・植物切り替え機能)。
+// 実際の閾値カタログはserver/utils/speciesCatalog.jsを参照。
+// NULLの場合(このマイグレーション以前に作成された植物)は、getSpeciesThresholds/
+// getSpeciesInfoがデフォルト種(モンステラ)にフォールバックするため、
+// 既存データへの影響はない。
+const speciesColumns = [{ name: 'species_key', ddl: 'species_key TEXT' }];
+const plantColumnsForSpecies = db.prepare('PRAGMA table_info(plants)').all();
+for (const column of speciesColumns) {
+  const exists = plantColumnsForSpecies.some((col) => col.name === column.name);
+  if (!exists) {
+    db.exec(`ALTER TABLE plants ADD COLUMN ${column.ddl};`);
+  }
+}
+
 export default db;
