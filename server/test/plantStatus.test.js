@@ -10,6 +10,7 @@ import {
   resolveTemperatureStatus,
   classifyHumidityDailyAverage,
   classifyIlluminanceDailyAverage,
+  MONSTERA_THRESHOLDS,
 } from '../utils/plantStatus.js';
 
 // 設計書5-7の閾値定義:
@@ -276,4 +277,57 @@ test('resolveSoilStatus: 未来の水やり時刻(時計のズレ)は緩和し�
     lastWateredAt: wateredAt.toISOString(),
   });
   assert.equal(result.status, 'dry');
+});
+
+// --- 植物種ごとの閾値パラメータ化(F-08・植物切り替え機能) ---
+// デフォルト引数(MONSTERA_THRESHOLDS)を省略した場合の挙動は上記の各テストで
+// 既に確認済みなので、ここでは「別の閾値を明示的に渡した場合に、その値が
+// 実際に反映されるか」だけを確認する(パラメータ化そのものの動作確認)。
+
+test('classifyTemperatureZone: 異なる閾値プロファイルを渡すと判定が変わる', () => {
+  const wideRangeThresholds = {
+    temperature: { healthyMin: 5, healthyMax: 40, dangerMin: 0, dangerMax: 45 },
+  };
+  // モンステラの閾値だと35℃はdangerだが、耐暑性の高い植物のプロファイルなら
+  // healthyになる、という想定のテスト。
+  assert.equal(classifyTemperatureZone(35, MONSTERA_THRESHOLDS), 'danger');
+  assert.equal(classifyTemperatureZone(35, wideRangeThresholds), 'healthy');
+});
+
+test('classifyHumidityDailyAverage: 異なる閾値プロファイルを渡すと判定が変わる', () => {
+  const highHumidityLovingThresholds = {
+    humidity: { healthyMin: 70, healthyMax: 95, needsCareMin: 50, needsCareMax: 100 },
+  };
+  // モンステラの閾値だと85%はcautionだが、多湿を好む植物のプロファイルなら
+  // healthyになる、という想定のテスト。
+  assert.equal(classifyHumidityDailyAverage(85, MONSTERA_THRESHOLDS), 'caution');
+  assert.equal(classifyHumidityDailyAverage(85, highHumidityLovingThresholds), 'healthy');
+});
+
+test('classifyIlluminanceDailyAverage: 異なる閾値プロファイルを渡すと判定が変わる', () => {
+  const shadeLovingThresholds = {
+    illuminance: { healthyMin: 200, cautionMin: 50 },
+  };
+  // モンステラの閾値だと700luxはcautionだが、日陰を好む植物のプロファイル
+  // なら十分healthy、という想定のテスト。
+  assert.equal(classifyIlluminanceDailyAverage(700, MONSTERA_THRESHOLDS), 'caution');
+  assert.equal(classifyIlluminanceDailyAverage(700, shadeLovingThresholds), 'healthy');
+});
+
+test('getSeasonalSoilThresholds / classifySoilZone: 異なる閾値プロファイルを渡すと判定が変わる', () => {
+  const droughtTolerantThresholds = {
+    soil: {
+      summer: { healthy: 15, needsCare: 5 },
+      winter: { healthy: 10, needsCare: 3 },
+      default: { healthy: 12, needsCare: 4 },
+    },
+  };
+  assert.deepEqual(getSeasonalSoilThresholds(7, droughtTolerantThresholds), {
+    healthy: 15,
+    needsCare: 5,
+  });
+  // モンステラの閾値だと夏のsoil=10はneeds_care_zoneだが、乾燥に強い植物の
+  // プロファイルなら同じ10%でもcaution_zone(または適正)になる、という想定。
+  assert.equal(classifySoilZone(10, 7, MONSTERA_THRESHOLDS), 'needs_care_zone');
+  assert.equal(classifySoilZone(10, 7, droughtTolerantThresholds), 'caution_zone');
 });
