@@ -164,20 +164,11 @@ class PlantInfoPage extends StatelessWidget {
                 padding: const EdgeInsets.all(AppSpacing.medium),
                 child: Column(
                   children: [
-                    ListTile(
-                      title: const Text('植物名'),
-                      trailing: Text(
-                        plant.name,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ),
+                    _InfoRow(label: '植物名', value: plant.name),
                     const Divider(),
-                    ListTile(
-                      title: const Text('植物種'),
-                      trailing: Text(
-                        plant.speciesInfo.scientificName,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
+                    _InfoRow(
+                      label: '植物種',
+                      value: plant.speciesInfo.scientificName,
                     ),
                     const SizedBox(height: AppSpacing.medium),
                     SizedBox(
@@ -337,11 +328,58 @@ class _CareConditionTile extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
+          const SizedBox(width: AppSpacing.extraSmall),
+          // 万一(フォント読み込みタイミング等で)想定より横幅が必要になっても、
+          // RenderFlexのオーバーフローエラーにはならず省略表示に倒れるようにする。
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 植物情報カード上部の「植物名」「植物種」のような、ラベル+値の1行表示。
+///
+/// 以前は`ListTile(title:, trailing:)`を使っていたが、trailingに長い文字列
+/// (例:「サトイモ科モンステラ属」)を渡すと、ListTile独自のレイアウト計算で
+/// 「Trailing widget consumes the entire tile width」という例外や
+/// RenderFlexオーバーフローが発生する不具合があった。ListTileに頼らず、
+/// 自前のRow(ラベル側をExpanded、値側をFlexible+省略表示)に置き換えることで、
+/// 値がどれだけ長くてもエラーにならず安全に収まるようにしている。
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          ),
+          const SizedBox(width: AppSpacing.small),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
         ],
