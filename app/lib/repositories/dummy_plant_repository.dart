@@ -62,6 +62,35 @@ class DummyPlantRepository implements PlantRepository {
   }
 
   @override
+  Future<Plant> createPlant({
+    required String name,
+    required String speciesKey,
+  }) async {
+    await _simulateNetwork();
+    final entry = _dummySpeciesCatalog.firstWhere(
+      (s) => s.key == speciesKey,
+      orElse: () => throw StateError('species not found: $speciesKey'),
+    );
+    // 実サーバーの POST /plants(まだセンサーデータが無い植物)と挙動を
+    // 合わせ、温度・湿度等は未計測状態(0/空文字)から始める。
+    // v1は1台1株のため、idは常に1固定でよい。
+    _plant = Plant(
+      id: 1,
+      name: name,
+      species: entry.scientificName,
+      temperature: 0,
+      humidity: 0,
+      soilMoisture: 0,
+      illuminance: 0,
+      status: PlantStatus.healthy,
+      updatedAt: '',
+      speciesKey: speciesKey,
+      speciesInfo: entry,
+    );
+    return _plant;
+  }
+
+  @override
   Future<Plant> updatePlant({
     String? name,
     String? species,

@@ -9,6 +9,7 @@ import '../models/plant.dart';
 import '../models/plant_notification.dart';
 import '../models/plant_species.dart';
 import 'plant_repository.dart';
+import 'plant_repository_exceptions.dart';
 
 /// [PlantRepository]の本実装。Node.js + SQLiteサーバー(server/)と通信する。
 ///
@@ -40,10 +41,9 @@ class HttpPlantRepository implements PlantRepository {
 
     final list = jsonDecode(res.body) as List<dynamic>;
     if (list.isEmpty) {
-      // v1では植物登録画面からの新規作成フローがまだHTTPに繋がっていないため、
-      // 初回は `curl -X POST $baseUrl/plants -d '{"name":"モンステラ"}'` などで
-      // 1件だけ手動登録しておく必要がある。
-      throw StateError('まだ植物が登録されていません。先に POST /plants で植物を1件登録してください。');
+      // 通信エラーと区別するため専用の例外を投げる(PlantStore.loadPlant()参照)。
+      // 呼び出し側(PlantStore)はこれをキャッチして登録画面へ誘導する。
+      throw const PlantNotRegisteredException();
     }
     return list.cast<Map<String, dynamic>>();
   }
@@ -52,6 +52,27 @@ class HttpPlantRepository implements PlantRepository {
   Future<Plant> fetchPlant() async {
     final list = await _fetchPlantList();
     final json = list.first;
+    _plantIdFuture = Future.value(json['id'] as int);
+    return Plant.fromJson(json);
+  }
+
+  @override
+  Future<Plant> createPlant({
+    required String name,
+    required String speciesKey,
+  }) async {
+    final uri = Uri.parse('$baseUrl/plants');
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'name': name, 'species_key': speciesKey}),
+    );
+    _ensureOk(res, 'POST /plants');
+
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    // fetchPlant()と同じく、以降のhistory/notifications呼び出しが同じ植物を
+    // 指すようにplantIdをここでキャッシュしておく(二重にGET /plantsを
+    // 呼ばずに済むようにするため)。
     _plantIdFuture = Future.value(json['id'] as int);
     return Plant.fromJson(json);
   }

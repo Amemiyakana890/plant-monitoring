@@ -5,7 +5,7 @@ import { getSeasonalSoilThresholds, getSoilSeasonForMonth } from '../utils/plant
 import { getSpeciesThresholds, getSpeciesInfo, isValidSpeciesKey } from '../utils/speciesCatalog.js';
 
 const insertPlantStmt = db.prepare(
-  `INSERT INTO plants (name, species, image, device_id) VALUES (?, ?, ?, ?)`,
+  `INSERT INTO plants (name, species, image, device_id, species_key) VALUES (?, ?, ?, ?, ?)`,
 );
 
 const selectPlantStmt = db.prepare(`SELECT * FROM plants WHERE id = ?`);
@@ -126,11 +126,28 @@ export function recordWatering(req, res) {
 
 // POST /plants (設計書5-2)
 // device_idは任意項目(未接続でも登録可)。指定する場合は登録済みのデバイスである必要がある。
+//
+// species_key(植物種の選択、F-08・植物登録画面)も任意項目として受け付ける。
+// アプリ側の登録画面ではラジオボタン等で選択必須にする方針だが、サーバー側は
+// updatePlantと同様にあえて必須にはしていない(curlでの動作確認や将来的な
+// 別クライアントからの利用まで塞がないため)。未指定の場合はgetSpeciesInfo/
+// getSpeciesThresholdsがデフォルト種(モンステラ)にフォールバックする。
 export function createPlant(req, res) {
-  const { name, species, image, device_id } = req.body ?? {};
+  const { name, species, image, device_id, species_key } = req.body ?? {};
 
   if (!name || typeof name !== 'string') {
     return sendError(res, 400, 'VALIDATION_ERROR', 'name は必須です');
+  }
+
+  if (species_key !== undefined && species_key !== null) {
+    if (typeof species_key !== 'string' || !isValidSpeciesKey(species_key)) {
+      return sendError(
+        res,
+        400,
+        'VALIDATION_ERROR',
+        '指定された植物種(species_key)が見つかりません',
+      );
+    }
   }
 
   if (device_id !== undefined && device_id !== null) {
@@ -140,11 +157,20 @@ export function createPlant(req, res) {
     }
   }
 
+  // updatePlant(5-2)と同じく、species_keyが指定された場合は表示用のspecies
+  // テキストをカタログの値で自動的に決める(bodyで別途species文字列が
+  // 送られてきても、species_keyを優先する)。
+  const resolvedSpecies =
+    species_key !== undefined && species_key !== null
+      ? getSpeciesInfo(species_key).scientific_name
+      : (species ?? null);
+
   const result = insertPlantStmt.run(
     name,
-    species ?? null,
+    resolvedSpecies,
     image ?? null,
     device_id ?? null,
+    species_key ?? null,
   );
   const created = selectPlantStmt.get(result.lastInsertRowid);
 

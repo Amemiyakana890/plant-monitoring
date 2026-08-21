@@ -3,7 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'config/api_config.dart';
 import 'repositories/http_plant_repository.dart';
-import 'screens/main_page.dart';
+import 'screens/app_root.dart';
 import 'state/main_tab_controller.dart';
 import 'state/main_tab_controller_scope.dart';
 import 'state/plant_store.dart';
@@ -74,7 +74,7 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: widget.themeController.themeMode,
-            home: const MainPage(),
+            home: const AppRoot(),
           ),
         ),
       ),

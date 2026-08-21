@@ -13,6 +13,17 @@ abstract class PlantRepository {
   /// GET /plants/:id 相当(v1は1台のデバイス・1株のみのため単一のPlantを返す)
   Future<Plant> fetchPlant();
 
+  /// POST /plants 相当(F-08・植物登録画面)。
+  ///
+  /// v1は「1台1株」の制約(要件定義書9章)のため、この呼び出しは植物が
+  /// まだ1件も存在しない場合にのみ想定している(2件目以降を作らないための
+  /// ガードは登録画面側・Store側で行う。本メソッド自体はガードしない)。
+  ///
+  /// [speciesKey]は登録フォーム側で選択必須(ラジオボタン等)にする方針のため、
+  /// あえてnullableにせず必須引数にしている。通知条件(閾値)が植物種ごとに
+  /// 異なる以上、「種未選択のまま植物が作られる」状態を型レベルで防ぐため。
+  Future<Plant> createPlant({required String name, required String speciesKey});
+
   /// PATCH /plants/:id 相当。
   /// [deviceId]は「ペアリング済みデバイスをこの植物に紐付ける」場合に指定する。
   /// 紐付け解除はunpairDevice()(DELETE /devices/:id)経由で行う

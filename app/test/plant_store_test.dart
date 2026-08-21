@@ -6,6 +6,7 @@ import 'package:plant_monitoring_app/models/plant.dart';
 import 'package:plant_monitoring_app/models/plant_notification.dart';
 import 'package:plant_monitoring_app/models/plant_species.dart';
 import 'package:plant_monitoring_app/repositories/plant_repository.dart';
+import 'package:plant_monitoring_app/repositories/plant_repository_exceptions.dart';
 import 'package:plant_monitoring_app/state/plant_store.dart';
 
 const _plant = Plant(
@@ -30,6 +31,7 @@ class FakePlantRepository implements PlantRepository {
     this.notifications = const [],
     this.throwOnFetchPlant = false,
     this.throwOnMarkRead = false,
+    this.throwNotRegisteredOnFetchPlant = false,
   });
 
   final Plant plant;
@@ -37,8 +39,17 @@ class FakePlantRepository implements PlantRepository {
   final bool throwOnFetchPlant;
   final bool throwOnMarkRead;
 
+  /// [PlantNotRegisteredException]を再現するためのフラグ。
+  /// 「植物が0件」を検知するPlantStore.loadPlant()の未登録分岐のテスト用
+  /// (throwOnFetchPlantとは意図的に別フラグにしている。PlantStore側で
+  /// この2つを区別してハンドリングすることを検証したいため)。
+  final bool throwNotRegisteredOnFetchPlant;
+
   @override
   Future<Plant> fetchPlant() async {
+    if (throwNotRegisteredOnFetchPlant) {
+      throw const PlantNotRegisteredException();
+    }
     if (throwOnFetchPlant) {
       throw StateError('network error');
     }
@@ -182,6 +193,33 @@ class FakePlantRepository implements PlantRepository {
       throw StateError('network error');
     }
     return speciesCatalog;
+  }
+
+  // ---- 植物登録API(F-08・植物登録画面) ----
+
+  bool throwOnCreatePlant = false;
+
+  // テストから「実際にどんな引数で呼ばれたか」を検証できるよう記録しておく。
+  String? createdPlantName;
+  String? createdPlantSpeciesKey;
+
+  @override
+  Future<Plant> createPlant({
+    required String name,
+    required String speciesKey,
+  }) async {
+    if (throwOnCreatePlant) {
+      throw StateError('network error');
+    }
+    createdPlantName = name;
+    createdPlantSpeciesKey = speciesKey;
+    final entry = speciesCatalog.firstWhere((s) => s.key == speciesKey);
+    return plant.copyWith(
+      name: name,
+      speciesKey: speciesKey,
+      speciesInfo: entry,
+      species: entry.scientificName,
+    );
   }
 }
 

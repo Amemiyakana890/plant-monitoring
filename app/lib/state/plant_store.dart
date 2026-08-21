@@ -9,6 +9,7 @@ import '../models/plant.dart';
 import '../models/plant_notification.dart';
 import '../models/plant_species.dart';
 import '../repositories/plant_repository.dart';
+import '../repositories/plant_repository_exceptions.dart';
 
 /// アプリ全体で共有する状態をまとめたストア。
 ///
@@ -40,6 +41,13 @@ class PlantStore extends ChangeNotifier {
   bool isRecordingWatering = false;
   bool isLoadingSpeciesCatalog = false;
   bool isSelectingSpecies = false;
+  bool isRegisteringPlant = false;
+
+  /// GET /plants が0件(=まだ植物が登録されていない)ことを検知した状態。
+  /// [AppRoot](screens/app_root.dart)はこれを見て登録画面へ振り分ける。
+  /// 通信エラー([errorMessage])とは意図的に別のフラグにしている
+  /// (両者でアプリの振る舞い(登録画面へ誘導 or 再試行を促す)が異なるため)。
+  bool needsRegistration = false;
 
   // データの種類ごとにエラーを分ける。1つの errorMessage にまとめると、
   // 例えば履歴取得の失敗が通知一覧のエラー表示を上書きしてしまうため。
@@ -51,6 +59,7 @@ class PlantStore extends ChangeNotifier {
   String? notificationSettingsErrorMessage;
   String? wateringErrorMessage;
   String? speciesCatalogErrorMessage;
+  String? registrationErrorMessage;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
@@ -92,6 +101,13 @@ class PlantStore extends ChangeNotifier {
       // バックグラウンド更新が成功したら、以前のエラー表示も消しておく。
       errorMessage = null;
       notifyListeners();
+    } on PlantNotRegisteredException {
+      // 起動中に植物が削除された等、ポーリング中に0件へ変わった場合。
+      // これは一時的な通信不調ではなく実際の状態変化なので、他の通信エラーと
+      // 異なりサイレントに無視せず、登録画面へ戻す(AppRoot参照)。
+      plant = null;
+      needsRegistration = true;
+      notifyListeners();
     } catch (_) {
       // 通信が一時的に途切れただけの可能性があるため、
       // 「静かに見守る」コンセプト通り、既に表示中のデータはそのままにし
@@ -115,13 +131,45 @@ class PlantStore extends ChangeNotifier {
   Future<void> loadPlant() async {
     isLoadingPlant = true;
     errorMessage = null;
+    needsRegistration = false;
     notifyListeners();
     try {
       plant = await _repository.fetchPlant();
+    } on PlantNotRegisteredException {
+      // 通信自体は成功しており、単に「まだ植物が0件」というだけなので、
+      // errorMessageには入れずneedsRegistrationで表現する
+      // (AppRootがこのフラグを見て登録画面に振り分ける)。
+      plant = null;
+      needsRegistration = true;
     } catch (_) {
       errorMessage = '植物の情報を取得できませんでした';
     } finally {
       isLoadingPlant = false;
+      notifyListeners();
+    }
+  }
+
+  /// 植物登録画面(F-08)から呼ぶ。POST /plants 相当。
+  ///
+  /// [speciesKey]は登録フォーム側でラジオボタン等により選択必須にする方針の
+  /// ため、ここでも必須引数にしている([PlantRepository.createPlant]参照)。
+  /// 成功時はtrue、失敗時はfalse(registrationErrorMessageにメッセージを設定)。
+  Future<bool> registerPlant({
+    required String name,
+    required String speciesKey,
+  }) async {
+    isRegisteringPlant = true;
+    registrationErrorMessage = null;
+    notifyListeners();
+    try {
+      plant = await _repository.createPlant(name: name, speciesKey: speciesKey);
+      needsRegistration = false;
+      return true;
+    } catch (_) {
+      registrationErrorMessage = '植物を登録できませんでした';
+      return false;
+    } finally {
+      isRegisteringPlant = false;
       notifyListeners();
     }
   }
