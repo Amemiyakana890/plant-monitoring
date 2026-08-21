@@ -150,7 +150,7 @@ C -->|API| E
 ```
 project
 ├── .github/    GitHub Actions
-├── docs/       設計・企画資料
+├── docs/       設計・企画資料・プレゼン資料
 ├── app/        Flutterアプリ(Android / iOS)
 ├── server/     APIサーバー(Node.js + SQLite)
 └── esp32/      センサーデバイス用スケッチ(Arduino)
@@ -166,6 +166,12 @@ project
 - [デバイス検証ログ](docs/device-test-log.md)
 
 ---
+
+## プレゼン資料
+
+本プロジェクトの概要や開発背景、システム構成、アプリケーションの特徴についてまとめています。
+
+📄 [プレゼン資料を見る](docs/presentation/植物見守り_展示発表資料.pdf)
 
 ## Flutterアプリの起動
 
