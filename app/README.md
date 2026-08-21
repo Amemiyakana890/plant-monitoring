@@ -62,12 +62,13 @@ node app.js
 
 `植物見守り API サーバー起動: http://localhost:3000/api` と表示されればOKです。
 
-初回のみ、動作確認用の植物を1件登録してください(v1は植物の新規登録画面がまだAPIに接続されていないため)。
+初回は植物登録画面で育てる植物を選択します(現状はモンテスラの1種のみです)
+植物変更をするときは植物情報画面、削除したいときはcurlから行って下さい。
+id番号に沿って末尾の数字を変更して下さい。
 
 ```bash
-curl -X POST http://localhost:3000/api/plants \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Monstera"}'
+curl http://localhost:3000/api/plants
+curl.exe -X DELETE http://localhost:3000/api/plants/3
 ```
 
 ### 3. アプリ側の接続先を設定する
@@ -194,10 +195,10 @@ lib/
 - 温度・湿度・照度の状態判定・通知(季節別閾値、サイレントタイム、カテゴリ別ON/OFF、複数項目同時悪化時の1件集約まで対応。詳細は[status-notification-design.md](../docs/status-notification-design.md)を参照)
 - 通知設定画面(サイレントタイム・カテゴリ別アラート)のAPI接続
 - 水やり記録機能(履歴一覧・グラフへの反映は保留中)
+- 植物の新規登録画面
 
 ### 🔄 今後実装予定
 
-- 植物の新規登録画面(現状はセットアップ時に`curl`コマンドで手動登録する必要がある。ルートの[README.md](../README.md)を参照)
 - Push通知(現状はアプリ内の通知一覧のみ)
 - BLEの導入
 
