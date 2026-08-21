@@ -173,6 +173,8 @@ project
 
 📄 [プレゼン資料を見る](docs/presentation/植物見守り_展示発表資料.pdf)
 
+---
+
 ## Flutterアプリの起動
 
 Flutter SDKは`app/pubspec.yaml`で**3.41.9**に固定しています。対応するDart SDKは**3.11.5**です。
