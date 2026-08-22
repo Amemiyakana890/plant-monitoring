@@ -29,7 +29,15 @@ export function determineStatus(soil) {
 // speciesCatalog.jsがこれをそのままカタログに登録する形にしている。
 export const MONSTERA_THRESHOLDS = {
   temperature: { healthyMin: 18, healthyMax: 30, dangerMin: 10, dangerMax: 35 },
-  humidity: { healthyMin: 60, healthyMax: 80, needsCareMin: 40, needsCareMax: 90 },
+  // humidity: 当初「適正60〜80%」としていたが、市販の育成ガイド(一般的な
+  // モンステラの適正湿度は40〜60%程度とされることが多い)を参考に、健康域を
+  // 40〜60%へ下方修正した(実測データではなく公開情報に基づく暫定的な調整。
+  // 詳細な経緯・今後の再検証方針は docs/status-notification-design.md 3-2章
+  // を参照。周囲の栽培経験者への確認や複数の情報源との照合も踏まえて、
+  // 改めて数値を見直す予定)。
+  // 元の閾値からの相対的な帯の幅(healthy帯20pt、低温側caution帯20pt、
+  // 高温側caution帯10pt)はそのまま維持し、全体を20pt下にシフトしている。
+  humidity: { healthyMin: 40, healthyMax: 60, needsCareMin: 20, needsCareMax: 70 },
   illuminance: { healthyMin: 1000, cautionMin: 500 },
   soil: {
     // 夏(6〜9月): 蒸散が多く乾きやすいため、他の季節より高めの閾値。
