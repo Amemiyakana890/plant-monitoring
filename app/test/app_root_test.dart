@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:plant_monitoring_app/main.dart';
 import 'package:plant_monitoring_app/models/device.dart';
 import 'package:plant_monitoring_app/models/environment_log.dart';
 import 'package:plant_monitoring_app/models/notification_settings.dart';
@@ -13,6 +12,8 @@ import 'package:plant_monitoring_app/screens/main_page.dart';
 import 'package:plant_monitoring_app/screens/onboarding/plant_registration_page.dart';
 import 'package:plant_monitoring_app/state/plant_store.dart';
 import 'package:plant_monitoring_app/state/theme_controller.dart';
+
+import 'support/test_app.dart';
 
 /// 登録成功後に返す植物データ(createPlant()のレスポンスの元ネタ)。
 const _registeredPlant = Plant(
@@ -31,7 +32,8 @@ const _speciesCatalog = [
   PlantSpecies(key: 'monstera', name: 'モンステラ', scientificName: 'サトイモ科モンステラ属'),
 ];
 
-/// [AppRoot](main.dart経由でPlantMonitoringAppが内部で使う)のルーティング
+/// [AppRoot](TestApp経由。本物のアプリではmain.dartのPlantMonitoringAppが
+/// 内部で使う)のルーティング
 /// (未登録→登録画面、登録成功→MainPage)を検証するための[PlantRepository]
 /// 偽実装。
 ///
@@ -156,7 +158,7 @@ Future<PlantStore> _pumpApp(
   // 決定的にするため先にawaitする(widget_test.dartと同じ方針)。
   await store.loadInitial();
   await tester.pumpWidget(
-    PlantMonitoringApp(store: store, themeController: themeController),
+    TestApp(store: store, themeController: themeController),
   );
   await _settle(tester);
   return store;

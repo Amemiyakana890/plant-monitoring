@@ -43,6 +43,11 @@ dependencies:
   # .env(API_BASE_URLなど)読み込み用
   flutter_dotenv: ^5.2.1
 
+  # v2: ログイン機能(Firebase Auth、メール/パスワード)用。
+  # Flutter 3.41.9 / Dart 3.11.5でWebビルド確認済みの組み合わせ。
+  firebase_core: 4.6.0
+  firebase_auth: 6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

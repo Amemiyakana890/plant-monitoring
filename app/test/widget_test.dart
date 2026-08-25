@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:plant_monitoring_app/main.dart';
 import 'package:plant_monitoring_app/repositories/dummy_plant_repository.dart';
 import 'package:plant_monitoring_app/state/plant_store.dart';
 import 'package:plant_monitoring_app/state/theme_controller.dart';
 import 'package:plant_monitoring_app/theme/app_colors.dart';
 import 'package:plant_monitoring_app/widgets/plant_card.dart';
+
+import 'support/test_app.dart';
 
 /// pumpAndSettle()が何らかの理由で終わらない場合でも、テストを何分も
 /// ハングさせず数秒で明確なタイムアウトエラーとして落とすためのラッパー。
@@ -28,7 +29,7 @@ Future<void> _pumpApp(WidgetTester tester) async {
 
   await store.loadInitial();
   await tester.pumpWidget(
-    PlantMonitoringApp(store: store, themeController: themeController),
+    TestApp(store: store, themeController: themeController),
   );
   await _settle(tester);
 }

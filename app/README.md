@@ -62,13 +62,12 @@ node app.js
 
 `植物見守り API サーバー起動: http://localhost:3000/api` と表示されればOKです。
 
-初回は植物登録画面で育てる植物を選択します。現状はモンテスラの1種のみです。
-植物変更をするときは植物情報画面、削除したいときはcurlから行って下さい。
-ID番号に沿って末尾の数字を変更して下さい。
+初回のみ、動作確認用の植物を1件登録してください(v1は植物の新規登録画面がまだAPIに接続されていないため)。
 
 ```bash
-curl http://localhost:3000/api/plants
-curl.exe -X DELETE http://localhost:3000/api/plants/3
+curl -X POST http://localhost:3000/api/plants \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Monstera"}'
 ```
 
 ### 3. アプリ側の接続先を設定する
@@ -108,7 +107,25 @@ flutter run
 flutter run -d <device-id>
 ```
 
-### 6. 品質チェック
+### 6. Firebase Authの設定(v2・ログイン機能)
+
+v2からログイン機能(Firebase Auth、メール/パスワード)を追加しています。
+Firebaseの公開設定値は`.env`から読み込みます(`.env.example`をコピーして設定してください)。
+
+1. [Firebase Console](https://console.firebase.google.com/)でプロジェクトを作成し、
+   Authentication → ログイン方法 で「メール/パスワード」を有効化しておく
+2. `.env.example`を`.env`へコピーし、Firebase Consoleの各アプリ設定から値を入力する
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Firebase ConsoleのAuthentication → ログイン方法で「メール/パスワード」を有効化する
+4. `flutter pub get`を実行(`firebase_core`・`firebase_auth`が未取得の場合)
+
+必要な設定値が不足している場合は、アプリ起動時に不足を案内します。
+
+### 7. 品質チェック
 
 ```bash
 dart format --output=none --set-exit-if-changed .
@@ -195,10 +212,10 @@ lib/
 - 温度・湿度・照度の状態判定・通知(季節別閾値、サイレントタイム、カテゴリ別ON/OFF、複数項目同時悪化時の1件集約まで対応。詳細は[status-notification-design.md](../docs/status-notification-design.md)を参照)
 - 通知設定画面(サイレントタイム・カテゴリ別アラート)のAPI接続
 - 水やり記録機能(履歴一覧・グラフへの反映は保留中)
-- 植物の新規登録画面
 
 ### 🔄 今後実装予定
 
+- 植物の新規登録画面(現状はセットアップ時に`curl`コマンドで手動登録する必要がある。ルートの[README.md](../README.md)を参照)
 - Push通知(現状はアプリ内の通知一覧のみ)
 - BLEの導入
 

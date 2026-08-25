@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase(v2・ログイン機能): `flutterfire configure`で生成される
+# プロジェクト固有の設定ファイル。各自の環境でセットアップし直す運用のため、
+# コミット対象から外す(app/README.md「6. Firebase Authの設定」参照)。
+/lib/firebase_options.dart
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+/macos/Runner/GoogleService-Info.plist
