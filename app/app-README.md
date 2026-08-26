@@ -64,15 +64,7 @@ node app.js
 
 `植物見守り API サーバー起動: http://localhost:3000/api` と表示されればOKです。
 
-初回のみ、動作確認用の植物を1件登録してください(v1は植物の新規登録画面がまだAPIに接続されていないため)。
-
-```bash
-curl -X POST http://localhost:3000/api/plants \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Monstera"}'
-```
-
-v2からは`POST /plants`を含む大半のAPIがログイン必須になっているため、上記の`curl`は`Authorization: Bearer <IDトークン>`ヘッダーが無いと401になります。動作確認用に一時的に叩く場合は、いったんアプリでログインしてFirebase ConsoleのAuthenticationログや`server`のログで挙動を確認するか、`server/middleware/require_auth.js`を一時的に外して確認してください。
+植物の登録はアプリ内の登録画面(F-08、`app/lib/screens/onboarding/plant_registration_page.dart`)で行います。植物が0件の状態でアプリを起動すると`AppRoot`が自動でこの画面に振り分けるため、`curl`などで事前に登録しておく必要はありません。
 
 ### 3. アプリ側の接続先を設定する
 
@@ -218,10 +210,10 @@ lib/
 - 水やり記録機能(履歴一覧・グラフへの反映は保留中)
 - **ログイン機能(Firebase Authentication、メール/パスワード)**。起動時に`AuthGate`でログイン状態を判定し、未ログイン時は`LoginPage`を表示(設定手順は本ファイル6章を参照)
 - **サーバーAPIの保護**。サーバー側にFirebaseのIDトークン検証ミドルウェア(`server/middleware/require_auth.js`)を追加し、`/sensor`以外の全APIに適用。`POST /sensor`はESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照
+- **植物の新規登録画面(F-08)**。`AppRoot`が植物未登録を検知すると自動で登録画面へ振り分け、`POST /plants`まで接続済み(`app/lib/screens/onboarding/plant_registration_page.dart`)。セットアップ時に`curl`コマンドで手動登録する必要はない
 
 ### 🔄 今後実装予定
 
-- 植物の新規登録画面(現状はセットアップ時に`curl`コマンドで手動登録する必要がある。ルートの[README.md](../README.md)を参照)
 - Push通知(現状はアプリ内の通知一覧のみ)
 - BLEの導入
 - 複数ユーザー対応(単一ユーザー前提から方針転換。ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。`LoginPage`の新規登録ボタンはこの方針に伴い意図的に開放したまま。設計・残課題は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照)
