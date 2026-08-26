@@ -15,7 +15,7 @@ import 'package:plant_monitoring_app/theme/app_theme.dart';
 /// 画面遷移を検証するのが目的で、ログイン機能自体の検証は対象外のため、
 /// こちらを使うことでテスト環境にFirebase初期化(Firebase.initializeApp)
 /// を用意する手間を避けている。ログイン画面(AuthGate/LoginPage)自体の
-/// 検証は別途 auth_gate_test.dart 側で行う想定。
+/// 検証は別途 test/auth_gate_test.dart で行っている。
 ///
 /// 中身は main.dart の `_PlantMonitoringAppState.build()` から
 /// AuthStoreScope/AuthGate を取り除いただけで、それ以外の構造
