@@ -27,14 +27,9 @@ Future<void> main() async {
 
   final authStore = AuthStore();
 
-  // PlantStoreの初期化(loadInitial/startPolling)は、ログイン状態に関わらず
-  // ここで開始してしまっている(v2のログインは「本人確認のゲート」としての
-  // 導入であり、サーバー側APIはまだトークンを検証しないため、未ログイン中に
-  // 通信が始まっても実害はない、という判断)。将来サーバー側にトークン検証を
-  // 足す場合は、このタイミングもログイン後に遅らせる形へ見直すこと。
-  final store = PlantStore(HttpPlantRepository(baseUrl: ApiConfig.baseUrl))
-    ..loadInitial()
-    ..startPolling(); // 30秒ごとにplant/notificationsを裏で自動更新する
+  final store = PlantStore(
+    HttpPlantRepository(baseUrl: ApiConfig.baseUrl),
+  );
   final themeController = ThemeController();
 
   runApp(
@@ -89,22 +84,37 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
   // 外側)に置くことで、設定配下のサブ画面(Navigator.pushで開く別ルート)
   // からも同じ状態を参照・変更できるようにする(AppBottomNavBar参照)。
   final MainTabController _tabController = MainTabController();
+  bool _loadedForCurrentSession = false;
 
   @override
   void initState() {
     super.initState();
     widget.themeController.addListener(_onThemeChanged);
+    widget.authStore.addListener(_onAuthChanged);
+    _onAuthChanged();
   }
 
   @override
   void dispose() {
     widget.store.stopPolling();
     widget.themeController.removeListener(_onThemeChanged);
+    widget.authStore.removeListener(_onAuthChanged);
     _tabController.dispose();
     super.dispose();
   }
 
   void _onThemeChanged() => setState(() {});
+
+  void _onAuthChanged() {
+    if (widget.authStore.isSignedIn && !_loadedForCurrentSession) {
+      _loadedForCurrentSession = true;
+      widget.store.loadInitial();
+      widget.store.startPolling();
+    } else if (!widget.authStore.isSignedIn) {
+      _loadedForCurrentSession = false;
+      widget.store.stopPolling();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -125,7 +125,28 @@ Firebaseの公開設定値は`.env`から読み込みます(`.env.example`をコ
 
 必要な設定値が不足している場合は、アプリ起動時に不足を案内します。
 
-### 7. 品質チェック
+### 7. APIサーバーのFirebase認証設定
+
+APIサーバーもFirebase IDトークンを検証するため、Firebase Consoleの
+プロジェクト設定 → サービスアカウントから秘密鍵(JSON)を生成し、
+リポジトリ外の安全な場所へ保存してください。JSONをGitへ追加したり、
+Flutterの`.env`へ内容をコピーしたりしないでください。
+
+PowerShellでは、保存先を環境変数に設定してからサーバーを起動します。
+
+```powershell
+$env:GOOGLE_APPLICATION_CREDENTIALS='C:\secure\plant-mimamori-firebase-adminsdk.json'
+cd ..\server
+npm install
+npm start
+```
+
+Firebase Admin SDKの設定がないサーバーは、FlutterからのAPIアクセスを
+受け付けません。APIは`Authorization: Bearer <Firebase ID token>`が必須です。
+ESP32の`POST /api/sensor`にはFirebase IDトークンの代わりに、ルート`.env`の
+`DEVICE_API_KEY`と`secrets.h`の`DEVICE_API_KEY`を同じ値で設定します。
+
+### 8. 品質チェック
 
 ```bash
 dart format --output=none --set-exit-if-changed .

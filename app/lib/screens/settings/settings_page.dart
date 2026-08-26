@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/device.dart';
+import '../../state/auth_store_scope.dart';
 import '../../state/plant_store_scope.dart';
 import '../../state/theme_controller.dart';
 import '../../state/theme_controller_scope.dart';
@@ -31,6 +32,29 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _push(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ログアウト'),
+        content: const Text('ログアウトしますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('ログアウト'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await AuthStoreScope.of(context).signOut();
+    }
   }
 
   @override
@@ -198,6 +222,16 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: Icon(Icons.code),
             title: Text('バージョン'),
             subtitle: Text('Ver 1.0.0（ビルド 20260804.1）'),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.large),
+
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('ログアウト'),
+            subtitle: const Text('現在のアカウントからログアウトします'),
+            onTap: () => _signOut(context),
           ),
         ),
         const SizedBox(height: AppSpacing.large),

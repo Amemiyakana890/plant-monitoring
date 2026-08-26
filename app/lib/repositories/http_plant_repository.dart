@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/device.dart';
@@ -20,10 +21,12 @@ import 'plant_repository_exceptions.dart';
 /// 使い回す(loadInitial()がloadPlant()とloadNotifications()を並列実行する
 /// ため、Futureをキャッシュして二重に問い合わせないようにしている)。
 class HttpPlantRepository implements PlantRepository {
-  HttpPlantRepository({required this.baseUrl});
+  HttpPlantRepository({required this.baseUrl, FirebaseAuth? firebaseAuth})
+    : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
   /// 例: 'http://192.168.1.10:3000/api'。詳細は[ApiConfig]参照。
   final String baseUrl;
+  final FirebaseAuth _firebaseAuth;
 
   Future<int>? _plantIdFuture;
 
@@ -36,7 +39,7 @@ class HttpPlantRepository implements PlantRepository {
 
   Future<List<Map<String, dynamic>>> _fetchPlantList() async {
     final uri = Uri.parse('$baseUrl/plants');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /plants');
 
     final list = jsonDecode(res.body) as List<dynamic>;
@@ -64,7 +67,7 @@ class HttpPlantRepository implements PlantRepository {
     final uri = Uri.parse('$baseUrl/plants');
     final res = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: await _authHeaders(json: true),
       body: jsonEncode({'name': name, 'species_key': speciesKey}),
     );
     _ensureOk(res, 'POST /plants');
@@ -88,7 +91,7 @@ class HttpPlantRepository implements PlantRepository {
     final uri = Uri.parse('$baseUrl/plants/$id');
     final res = await http.patch(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: await _authHeaders(json: true),
       // deviceId未指定時はnullを送るが、サーバー側はCOALESCEで現在値を
       // 維持するだけなので、既存の紐付けを壊すことはない(設計書5-2参照)。
       body: jsonEncode({
@@ -105,7 +108,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<Plant> recordWatering(int plantId) async {
     final uri = Uri.parse('$baseUrl/plants/$plantId/waterings');
-    final res = await http.post(uri);
+    final res = await http.post(uri, headers: await _authHeaders());
     _ensureOk(res, 'POST /plants/$plantId/waterings');
     return Plant.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -114,7 +117,7 @@ class HttpPlantRepository implements PlantRepository {
   Future<List<EnvironmentLog>> fetchHistory({String range = '7d'}) async {
     final id = await _resolvePlantId();
     final uri = Uri.parse('$baseUrl/history/$id?range=$range');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /history/$id');
 
     final json = jsonDecode(res.body) as Map<String, dynamic>;
@@ -132,7 +135,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<List<PlantNotification>> fetchNotifications() async {
     final uri = Uri.parse('$baseUrl/notifications');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /notifications');
 
     final list = jsonDecode(res.body) as List<dynamic>;
@@ -146,7 +149,7 @@ class HttpPlantRepository implements PlantRepository {
     final uri = Uri.parse('$baseUrl/notifications/$id');
     final res = await http.patch(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: await _authHeaders(json: true),
       body: jsonEncode({'is_read': true}),
     );
     _ensureOk(res, 'PATCH /notifications/$id');
@@ -160,7 +163,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<List<Device>> fetchDevices() async {
     final uri = Uri.parse('$baseUrl/devices');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /devices');
 
     final list = jsonDecode(res.body) as List<dynamic>;
@@ -172,7 +175,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<Device> fetchDevice(int id) async {
     final uri = Uri.parse('$baseUrl/devices/$id');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /devices/$id');
     return Device.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
@@ -185,7 +188,7 @@ class HttpPlantRepository implements PlantRepository {
     final uri = Uri.parse('$baseUrl/devices/pair');
     final res = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: await _authHeaders(json: true),
       body: jsonEncode({'device_name': deviceName, 'mac_address': macAddress}),
     );
 
@@ -201,7 +204,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<void> unpairDevice(int id) async {
     final uri = Uri.parse('$baseUrl/devices/$id');
-    final res = await http.delete(uri);
+    final res = await http.delete(uri, headers: await _authHeaders());
     _ensureOk(res, 'DELETE /devices/$id');
   }
 
@@ -210,7 +213,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<NotificationSettings> fetchNotificationSettings() async {
     final uri = Uri.parse('$baseUrl/settings/notification');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /settings/notification');
     return NotificationSettings.fromJson(
       jsonDecode(res.body) as Map<String, dynamic>,
@@ -224,7 +227,7 @@ class HttpPlantRepository implements PlantRepository {
     final uri = Uri.parse('$baseUrl/settings/notification');
     final res = await http.put(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: await _authHeaders(json: true),
       body: jsonEncode(settings.toJson()),
     );
     _ensureOk(res, 'PUT /settings/notification');
@@ -238,7 +241,7 @@ class HttpPlantRepository implements PlantRepository {
   @override
   Future<List<PlantSpecies>> fetchSpeciesCatalog() async {
     final uri = Uri.parse('$baseUrl/species');
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: await _authHeaders());
     _ensureOk(res, 'GET /species');
     final list = jsonDecode(res.body) as List<dynamic>;
     return list
@@ -252,6 +255,21 @@ class HttpPlantRepository implements PlantRepository {
         '$label に失敗しました (status: ${res.statusCode}, body: ${res.body})',
       );
     }
+  }
+
+  Future<Map<String, String>> _authHeaders({bool json = false}) async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      throw StateError('Firebaseにログインしていません');
+    }
+    final token = await user.getIdToken();
+    if (token == null || token.isEmpty) {
+      throw StateError('Firebaseの認証トークンを取得できませんでした');
+    }
+    return {
+      'Authorization': 'Bearer $token',
+      if (json) 'Content-Type': 'application/json',
+    };
   }
 
   /// created_at(ISO8601、例: '2026-07-28T10:35:00')から

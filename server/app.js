@@ -5,6 +5,7 @@
 // 評価が先に終わってしまい、db.js側でDB_PATHを読み取れない。
 // そのため専用のenv.jsに分離し、一番最初のimportとして読み込む。
 import './env.js';
+import './firebase_admin.js';
 
 import express from 'express';
 import cors from 'cors';
@@ -17,10 +18,19 @@ import devicesRouter from './routes/devices.js';
 import settingsRouter from './routes/settings.js';
 import speciesRouter from './routes/species.js';
 import { sendError } from './utils/errors.js';
+import { requireAuth } from './middleware/require_auth.js';
+import { requireDeviceAuth } from './middleware/require_device_auth.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/api/sensor', requireDeviceAuth);
+app.use('/api', (req, res, next) => {
+  if (req.path === '/sensor' || req.path.startsWith('/sensor/')) {
+    return next();
+  }
+  return requireAuth(req, res, next);
+});
 
 // ベースURLは 設計書5章の通り http://<server-ip>:port/api
 app.use('/api/plants', plantsRouter);

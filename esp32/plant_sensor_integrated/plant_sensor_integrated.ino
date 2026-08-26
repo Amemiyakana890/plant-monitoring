@@ -161,6 +161,7 @@ bool sendSensorData(float temperature, float humidity, float soil,
       String("http://") + SERVER_HOST + ":" + SERVER_PORT + SENSOR_ENDPOINT;
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Device-Api-Key", DEVICE_API_KEY);
 
   String payload = String("{") +
       "\"device_id\":" + DEVICE_ID + "," +
