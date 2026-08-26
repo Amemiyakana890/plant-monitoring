@@ -54,6 +54,8 @@ v1は「1台のデバイス・1株の植物のみ」を管理する単独構成�
 
 このアプリは`server/`のAPIサーバーが起動していないと、植物の情報を取得できません。
 
+サーバー側の`.env`(プロジェクトルート直下)には、v2から`GOOGLE_APPLICATION_CREDENTIALS`(Firebase Admin SDKのサービスアカウント鍵)と`DEVICE_API_KEY`(ESP32用の認証キー)の設定が必須です。未設定のままだと`node app.js`自体は起動できますが、アプリ側のAPIリクエストが全て401になります。設定手順はルートの[README.md「環境変数」章](../README.md#環境変数)を参照してください。
+
 ```bash
 cd server
 npm install
@@ -69,6 +71,8 @@ curl -X POST http://localhost:3000/api/plants \
   -H "Content-Type: application/json" \
   -d '{"name":"Monstera"}'
 ```
+
+v2からは`POST /plants`を含む大半のAPIがログイン必須になっているため、上記の`curl`は`Authorization: Bearer <IDトークン>`ヘッダーが無いと401になります。動作確認用に一時的に叩く場合は、いったんアプリでログインしてFirebase ConsoleのAuthenticationログや`server`のログで挙動を確認するか、`server/middleware/require_auth.js`を一時的に外して確認してください。
 
 ### 3. アプリ側の接続先を設定する
 
@@ -213,13 +217,14 @@ lib/
 - 通知設定画面(サイレントタイム・カテゴリ別アラート)のAPI接続
 - 水やり記録機能(履歴一覧・グラフへの反映は保留中)
 - **ログイン機能(Firebase Authentication、メール/パスワード)**。起動時に`AuthGate`でログイン状態を判定し、未ログイン時は`LoginPage`を表示(設定手順は本ファイル6章を参照)
+- **サーバーAPIの保護**。サーバー側にFirebaseのIDトークン検証ミドルウェア(`server/middleware/require_auth.js`)を追加し、`/sensor`以外の全APIに適用。`POST /sensor`はESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照
 
 ### 🔄 今後実装予定
 
 - 植物の新規登録画面(現状はセットアップ時に`curl`コマンドで手動登録する必要がある。ルートの[README.md](../README.md)を参照)
 - Push通知(現状はアプリ内の通知一覧のみ)
 - BLEの導入
-- サーバーAPIの保護(現状はログイン画面を経由せずサーバーへ直接アクセスできてしまう。設計は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照)
+- 複数ユーザー対応(単一ユーザー前提から方針転換。ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。`LoginPage`の新規登録ボタンはこの方針に伴い意図的に開放したまま。設計・残課題は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照)
 
 ---
 

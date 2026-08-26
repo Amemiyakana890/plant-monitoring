@@ -140,8 +140,9 @@ C -->|API| E
 - ⬜ Push通知{(現状はアプリ内の通知一覧のみ)Firebaseを導入してから着手予定でFirebase Cloud Messaging(FCM)を使おうと思います}
 - ⬜ Bluetooth Low Energy(BLE)はFirebaseを導入してから着手予定
 - ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証。本人確認のゲートのみで、ユーザーごとのデータ分離は行わないパターンAでの実装)
-- ⬜ v2:セキュリティ強化(サーバーAPIがFirebaseのIDトークンを検証しておらず、ログインを経由せず直接APIを叩ける状態が残っている。対処方針は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
+- ✅ v2:セキュリティ強化(サーバーAPIにFirebaseのIDトークン検証ミドルウェアを追加(`server/middleware/require_auth.js`)。`POST /sensor`のみESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
 - ⬜ v2でのFirebase移行(ログイン機能から着手済み。Push通知・その他の移行は本格的な見直しが済んでから)
+- ⬜ v2で複数ユーザー対応にする(単一ユーザー前提から方針転換。ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。新規登録ボタン(`LoginPage`)はこの方針に伴い意図的に開放したまま。詳細・残課題は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
 - ⬜ v2で複数植物・複数デバイス対応にする
 
 ---
@@ -218,5 +219,16 @@ copy .env.example .env
 必要に応じて `.env` の内容を編集してください。
 
 ※ `.env` は機密情報を含むため GitHub にはコミットしません。
+
+### サーバー用の追加設定(v2・認証機能を使う場合)
+
+サーバーAPIの保護(認証、詳細は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)を有効にするには、`.env` に以下2つの値の設定が必須です。未設定のままだと`node app.js`自体は起動できてしまいますが、アプリからのAPIリクエストが全て401(認証エラー)になり、原因が分かりにくいので注意してください。
+
+| 変数 | 内容 | 取得方法 |
+|---|---|---|
+| `GOOGLE_APPLICATION_CREDENTIALS` | Firebase Admin SDKのサービスアカウント鍵(JSON)ファイルへの絶対パス | [Firebase Console](https://console.firebase.google.com/) → 対象プロジェクト → プロジェクトの設定 → サービスアカウント タブ → 「新しい秘密鍵の生成」でJSONファイルをダウンロードし、そのファイルへの絶対パスを指定する。このJSONファイル自体は機密情報のため、リポジトリ管理外(`.gitignore`対象)の場所に置くこと |
+| `DEVICE_API_KEY` | ESP32から`POST /sensor`を送信する際のデバイス認証キー(任意の長い文字列) | 自分で長めのランダム文字列を生成して設定する(例: `openssl rand -hex 32`)。`esp32/plant_sensor_integrated/secrets.h`側の`DEVICE_API_KEY`にも同じ値を設定すること |
+
+設定後、`node app.js`を起動した際にコンソールへ`Firebase IDトークンの検証に失敗しました: Unable to detect a Project Id...`のような警告が出る場合は、`GOOGLE_APPLICATION_CREDENTIALS`のパスが誤っているか、指定したファイルが存在しない可能性があります。
 
 ## GitHub Desktop テスト
