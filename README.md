@@ -139,8 +139,9 @@ C -->|API| E
 - ✅ 植物の新規登録画面(F-08)。現状はセットアップ時に`curl`コマンドで手動登録する必要がある(詳細は下記セットアップ手順を参照、v2にて着手予定)
 - ⬜ Push通知{(現状はアプリ内の通知一覧のみ)Firebaseを導入してから着手予定でFirebase Cloud Messaging(FCM)を使おうと思います}
 - ⬜ Bluetooth Low Energy(BLE)はFirebaseを導入してから着手予定
-- ⬜ (v2でのFirebase移行-着手は本格的な見直しが済んでから・併用案があるので未定)
-- ✅ v2ではログイン機能、セキュリティを導入
+- ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証。本人確認のゲートのみで、ユーザーごとのデータ分離は行わないパターンAでの実装)
+- ⬜ v2:セキュリティ強化(サーバーAPIがFirebaseのIDトークンを検証しておらず、ログインを経由せず直接APIを叩ける状態が残っている。対処方針は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
+- ⬜ v2でのFirebase移行(ログイン機能から着手済み。Push通知・その他の移行は本格的な見直しが済んでから)
 - ⬜ v2で複数植物・複数デバイス対応にする
 
 ---
@@ -195,13 +196,6 @@ flutter test
 ```
 
 Androidで実行する場合はAndroid StudioとAndroid SDK、iOSで実行する場合はmacOSとXcodeが必要です。詳細は[`app/README.md`](app/README.md)を参照してください。
-
----
-
-## ログインについて
-
-ログインはFirebaseを使用しています。
-新規登録でメールアドレス、パスワードを設定するかテスト用のものを入力してください。
 
 ---
 

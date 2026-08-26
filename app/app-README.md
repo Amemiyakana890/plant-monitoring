@@ -125,28 +125,7 @@ Firebaseの公開設定値は`.env`から読み込みます(`.env.example`をコ
 
 必要な設定値が不足している場合は、アプリ起動時に不足を案内します。
 
-### 7. APIサーバーのFirebase認証設定
-
-APIサーバーもFirebase IDトークンを検証するため、Firebase Consoleの
-プロジェクト設定 → サービスアカウントから秘密鍵(JSON)を生成し、
-リポジトリ外の安全な場所へ保存してください。JSONをGitへ追加したり、
-Flutterの`.env`へ内容をコピーしたりしないでください。
-
-PowerShellでは、保存先を環境変数に設定してからサーバーを起動します。
-
-```powershell
-$env:GOOGLE_APPLICATION_CREDENTIALS='C:\secure\plant-mimamori-firebase-adminsdk.json'
-cd ..\server
-npm install
-npm start
-```
-
-Firebase Admin SDKの設定がないサーバーは、FlutterからのAPIアクセスを
-受け付けません。APIは`Authorization: Bearer <Firebase ID token>`が必須です。
-ESP32の`POST /api/sensor`にはFirebase IDトークンの代わりに、ルート`.env`の
-`DEVICE_API_KEY`と`secrets.h`の`DEVICE_API_KEY`を同じ値で設定します。
-
-### 8. 品質チェック
+### 7. 品質チェック
 
 ```bash
 dart format --output=none --set-exit-if-changed .
@@ -233,12 +212,14 @@ lib/
 - 温度・湿度・照度の状態判定・通知(季節別閾値、サイレントタイム、カテゴリ別ON/OFF、複数項目同時悪化時の1件集約まで対応。詳細は[status-notification-design.md](../docs/status-notification-design.md)を参照)
 - 通知設定画面(サイレントタイム・カテゴリ別アラート)のAPI接続
 - 水やり記録機能(履歴一覧・グラフへの反映は保留中)
+- **ログイン機能(Firebase Authentication、メール/パスワード)**。起動時に`AuthGate`でログイン状態を判定し、未ログイン時は`LoginPage`を表示(設定手順は本ファイル6章を参照)
 
 ### 🔄 今後実装予定
 
 - 植物の新規登録画面(現状はセットアップ時に`curl`コマンドで手動登録する必要がある。ルートの[README.md](../README.md)を参照)
 - Push通知(現状はアプリ内の通知一覧のみ)
 - BLEの導入
+- サーバーAPIの保護(現状はログイン画面を経由せずサーバーへ直接アクセスできてしまう。設計は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照)
 
 ---
 
