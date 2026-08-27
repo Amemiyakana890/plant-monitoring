@@ -4,7 +4,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/api_config.dart';
 import 'config/firebase_config.dart';
 import 'repositories/http_plant_repository.dart';
+import 'repositories/plant_repository.dart';
 import 'screens/auth_gate.dart';
+import 'services/push_notification_service.dart';
 import 'state/auth_store.dart';
 import 'state/auth_store_scope.dart';
 import 'state/main_tab_controller.dart';
@@ -27,15 +29,17 @@ Future<void> main() async {
 
   final authStore = AuthStore();
 
-  final store = PlantStore(
-    HttpPlantRepository(baseUrl: ApiConfig.baseUrl),
+  final PlantRepository repository = HttpPlantRepository(
+    baseUrl: ApiConfig.baseUrl,
   );
+  final store = PlantStore(repository);
   final themeController = ThemeController();
 
   runApp(
     PlantMonitoringApp(
       authStore: authStore,
       store: store,
+      repository: repository,
       themeController: themeController,
     ),
   );
@@ -66,12 +70,14 @@ class FirebaseSetupErrorApp extends StatelessWidget {
 class PlantMonitoringApp extends StatefulWidget {
   final AuthStore authStore;
   final PlantStore store;
+  final PlantRepository repository;
   final ThemeController themeController;
 
   const PlantMonitoringApp({
     super.key,
     required this.authStore,
     required this.store,
+    required this.repository,
     required this.themeController,
   });
 
@@ -86,9 +92,19 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
   final MainTabController _tabController = MainTabController();
   bool _loadedForCurrentSession = false;
 
+  // Push通知(FCM)の初期化・トークン登録・受信ハンドリングをまとめたサービス。
+  // _tabControllerを参照するため、フィールド初期化子ではなくinitState()内で
+  // 生成する(docs/push-notification-design.md 6-2章)。
+  late final PushNotificationService _pushNotificationService;
+
   @override
   void initState() {
     super.initState();
+    _pushNotificationService = PushNotificationService(
+      repository: widget.repository,
+      plantStore: widget.store,
+      tabController: _tabController,
+    );
     widget.themeController.addListener(_onThemeChanged);
     widget.authStore.addListener(_onAuthChanged);
     _onAuthChanged();
@@ -110,6 +126,10 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
       _loadedForCurrentSession = true;
       widget.store.loadInitial();
       widget.store.startPolling();
+      // ログイン後にFCMトークンを登録する(docs/push-notification-design.md
+      // 6-2章)。initialize()は内部で2回目以降の呼び出しを無視するため、
+      // ログアウト→再ログインを繰り返しても購読が重複しない。
+      _pushNotificationService.initialize();
     } else if (!widget.authStore.isSignedIn) {
       _loadedForCurrentSession = false;
       widget.store.stopPolling();

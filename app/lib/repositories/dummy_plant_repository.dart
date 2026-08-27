@@ -325,4 +325,14 @@ class DummyPlantRepository implements PlantRepository {
     await _simulateNetwork();
     return _dummySpeciesCatalog;
   }
+
+  // ---- Push通知(FCM)用デバイストークンAPI(ダミー実装、何も保存しない) ----
+
+  @override
+  Future<void> registerDeviceToken({
+    required String fcmToken,
+    String platform = 'android',
+  }) async {
+    await _simulateNetwork();
+  }
 }

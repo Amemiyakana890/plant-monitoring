@@ -53,6 +53,24 @@ export function validateDevicePairPayload({ device_name, mac_address }) {
   return null;
 }
 
+/**
+ * PUT/DELETE /devices/tokens 用のバリデーション(docs/push-notification-design.md 4章)。
+ *
+ * fcm_token: 空でない文字列(必須)
+ * platform: 'android' | 'ios'(省略時は'android'。Android先行のため。docs 1章参照)
+ *
+ * 戻り値: 問題なければnull、問題があればユーザー向けエラーメッセージ(string)。
+ */
+export function validateDeviceTokenPayload({ fcm_token, platform }) {
+  if (typeof fcm_token !== 'string' || fcm_token.trim() === '') {
+    return 'fcm_token は空でない文字列で指定してください';
+  }
+  if (platform !== undefined && platform !== 'android' && platform !== 'ios') {
+    return "platform は 'android' または 'ios' で指定してください";
+  }
+  return null;
+}
+
 function isMacAddress(value) {
   return /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(value);
 }

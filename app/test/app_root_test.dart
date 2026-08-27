@@ -134,6 +134,12 @@ class _FakePlantRepository implements PlantRepository {
 
   @override
   Future<List<PlantSpecies>> fetchSpeciesCatalog() async => _speciesCatalog;
+
+  @override
+  Future<void> registerDeviceToken({
+    required String fcmToken,
+    String platform = 'android',
+  }) async {}
 }
 
 /// widget_test.dartと同じく、pumpAndSettle()のデフォルトタイムアウト(10分)に

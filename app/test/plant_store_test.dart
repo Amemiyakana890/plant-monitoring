@@ -195,6 +195,14 @@ class FakePlantRepository implements PlantRepository {
     return speciesCatalog;
   }
 
+  // ---- Push通知(FCM)用デバイストークンAPI ----
+
+  @override
+  Future<void> registerDeviceToken({
+    required String fcmToken,
+    String platform = 'android',
+  }) async {}
+
   // ---- 植物登録API(F-08・植物登録画面) ----
 
   bool throwOnCreatePlant = false;

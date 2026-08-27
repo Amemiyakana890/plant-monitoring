@@ -249,6 +249,22 @@ class HttpPlantRepository implements PlantRepository {
         .toList();
   }
 
+  // ---- Push通知(FCM)用デバイストークンAPI(docs/push-notification-design.md 4章) ----
+
+  @override
+  Future<void> registerDeviceToken({
+    required String fcmToken,
+    String platform = 'android',
+  }) async {
+    final uri = Uri.parse('$baseUrl/devices/tokens');
+    final res = await http.put(
+      uri,
+      headers: await _authHeaders(json: true),
+      body: jsonEncode({'fcm_token': fcmToken, 'platform': platform}),
+    );
+    _ensureOk(res, 'PUT /devices/tokens');
+  }
+
   void _ensureOk(http.Response res, String label) {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw StateError(

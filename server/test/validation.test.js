@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   validateSensorPayload,
   validateDevicePairPayload,
+  validateDeviceTokenPayload,
 } from '../utils/validation.js';
 
 // 設計書5-4のバリデーション仕様(デバイスペアリング機能実装後):
@@ -95,5 +96,34 @@ test('mac_addressの形式が不正だとエラーになる', () => {
   assert.match(
     validateDevicePairPayload({ device_name: 'Plant Monitor 01', mac_address: 'AA:BB:CC:DD:EE' }),
     /mac_address/,
+  );
+});
+
+// PUT/DELETE /devices/tokens (docs/push-notification-design.md 4章)のバリデーション
+
+test('fcm_tokenのみ指定(platform省略)ならnullを返す', () => {
+  const result = validateDeviceTokenPayload({ fcm_token: 'xxxxx' });
+  assert.equal(result, null);
+});
+
+test('fcm_token・platformともに正しければnullを返す', () => {
+  const result = validateDeviceTokenPayload({ fcm_token: 'xxxxx', platform: 'android' });
+  assert.equal(result, null);
+});
+
+test('platformが"ios"でも許容する(iOS対応自体は将来だが値としては許可)', () => {
+  const result = validateDeviceTokenPayload({ fcm_token: 'xxxxx', platform: 'ios' });
+  assert.equal(result, null);
+});
+
+test('fcm_tokenが空文字・未指定だとエラーになる', () => {
+  assert.match(validateDeviceTokenPayload({ fcm_token: '' }), /fcm_token/);
+  assert.match(validateDeviceTokenPayload({}), /fcm_token/);
+});
+
+test('platformがandroid/ios以外だとエラーになる', () => {
+  assert.match(
+    validateDeviceTokenPayload({ fcm_token: 'xxxxx', platform: 'windows' }),
+    /platform/,
   );
 });

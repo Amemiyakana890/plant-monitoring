@@ -77,4 +77,12 @@ abstract class PlantRepository {
   /// GET /species 相当(F-08・植物切り替え機能)。
   /// 植物情報ページの「植物を選択する」で表示する選択肢一覧。
   Future<List<PlantSpecies>> fetchSpeciesCatalog();
+
+  /// PUT /devices/tokens 相当(docs/push-notification-design.md 4-1章)。
+  /// ログイン成功時・FCMトークンのonTokenRefresh発火時に呼ぶ
+  /// (services/push_notification_service.dart参照)。
+  Future<void> registerDeviceToken({
+    required String fcmToken,
+    String platform = 'android',
+  });
 }

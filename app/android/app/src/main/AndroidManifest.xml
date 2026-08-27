@@ -1,8 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 13(API 33)以降でPush通知を表示するために必要
+         (docs/push-notification-design.md 6-2章)。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="植物見守り"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- サーバー側(server/utils/pushNotifier.js)はFCMペイロードで
+             特定のチャンネルIDを指定していないため、このメタデータで
+             指定したチャンネルが既定として使われる。チャンネルの実体は
+             lib/services/push_notification_service.dartの
+             pushNotificationAndroidChannelで作成している(IDを一致させること)。 -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="plant_monitoring_alerts" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -231,4 +231,22 @@ for (const column of speciesColumns) {
   }
 }
 
+// Push通知(FCM)用のデバイストークン(docs/push-notification-design.md 3章)。
+// 「アプリ全体で1件」ではなくFirebaseのuidに紐づけて保存する。v1〜v2初期は
+// 単一ユーザー運用のため実質1種類のuidしか入らないが、最初からuidで持たせて
+// おくことで、将来複数ユーザー対応(v2-firebase-security-design.md パターンB)
+// になった際に「このユーザーの端末にだけ送る」という絞り込みがそのまま使える。
+// fcm_tokenにUNIQUE制約を付け、uid : token = 1 : N(将来1ユーザーが複数端末を
+// 持つケースに対応)を許容しつつ、同じ端末の二重登録では行が増えないようにする。
+db.exec(`
+  CREATE TABLE IF NOT EXISTS device_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_uid TEXT NOT NULL,
+    fcm_token TEXT NOT NULL UNIQUE,
+    platform TEXT NOT NULL DEFAULT 'android',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  );
+`);
+
 export default db;

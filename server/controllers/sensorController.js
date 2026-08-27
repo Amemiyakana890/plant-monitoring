@@ -8,6 +8,7 @@ import {
 import { getSpeciesThresholds } from '../utils/speciesCatalog.js';
 import { validateSensorPayload } from '../utils/validation.js';
 import { sendError } from '../utils/errors.js';
+import { sendPushNotification } from '../utils/pushNotifier.js';
 import {
   toSqliteTimestamp,
   shouldRunDailyEvaluation,
@@ -92,6 +93,26 @@ const selectIlluminanceDaytimeAverageStmt = db.prepare(`
 const insertNotificationStmt = db.prepare(
   `INSERT INTO notifications (plant_id, message, category) VALUES (?, ?, ?)`,
 );
+
+// insertNotificationStmtをラップする共通関数(docs/push-notification-design.md
+// 2章)。DB保存とPush送信をまとめて呼び出す。通知生成箇所(現在2箇所、
+// runSilentTimeUnlockCheckとreceiveSensorData)は必ずこの関数経由にすることで、
+// 今後3箇所目が増えてもPush送信を書き忘れる心配がなくなる。
+//
+// Push送信は`await`するが、失敗しても`/sensor`のレスポンス(センサーデータの
+// 保存が成功したか)には一切影響させない(2026年8月決定・docs 5-1章)。
+// テストのしやすさ(非同期処理の完了を確定的に待てる)と、関心の分離
+// (センサー保存の成否とPush送信の成否は別)を優先した判断。
+async function createNotification(plantId, message, category) {
+  insertNotificationStmt.run(plantId, message, category);
+
+  try {
+    await sendPushNotification(message);
+  } catch (err) {
+    console.error('Push通知の送信に失敗しました:', err);
+    // ここでは何もthrowしない。/sensorのレスポンスは通常通り返す。
+  }
+}
 
 // 状態が「悪化した」場合にのみ通知するための順位付け(設計書5-7・F-05)。
 // 「静かに見守る」コンセプト上、同じ状態が続く間は毎回通知しない。
@@ -299,7 +320,7 @@ function buildWorstAxisNotification(plant, settings) {
 // NOTE: この関数はセンサー受信処理の「更新前」の状態(plant)を見て判定する。
 // 「夜間に何が起きていたか」を反映するのが目的のため、今回の受信で新しく届いた
 // 値ではなく、直前まで保持していた状態を使うのが自然という判断。
-function runSilentTimeUnlockCheck(plant, now, settings, silentNow) {
+async function runSilentTimeUnlockCheck(plant, now, settings, silentNow) {
   if (silentNow) return; // サイレントタイム中は解禁チェック自体を行わない
 
   const end = parseHourMinute(settings.end_time) ?? { hour: 6, minute: 0 };
@@ -314,7 +335,7 @@ function runSilentTimeUnlockCheck(plant, now, settings, silentNow) {
   if (plant.pending_notification) {
     const notification = buildWorstAxisNotification(plant, settings);
     if (notification) {
-      insertNotificationStmt.run(plant.id, notification.message, notification.category);
+      await createNotification(plant.id, notification.message, notification.category);
     }
     setPendingNotificationStmt.run(0, plant.id);
   }
@@ -341,7 +362,7 @@ function isFullyHealthy({ soilStatus, tempStatus, humidityDailyStatus, illuminan
 // デバイスペアリング機能の実装に伴い、plant_idを直接受け取る簡易版から
 // device_id起点の本来設計に戻した。ESP32はdevice_idを送り、サーバー側で
 // plants.device_idを参照してどの植物のログかを判定する。
-export function receiveSensorData(req, res) {
+export async function receiveSensorData(req, res) {
   const { device_id, temperature, humidity, soil, illuminance } =
     req.body ?? {};
 
@@ -374,7 +395,7 @@ export function receiveSensorData(req, res) {
 
   // サイレントタイムの解禁チェックは、今回の受信で値を更新する「前」の
   // plantの状態(=夜間の間ずっと保持されていた最新の状態)を見て行う。
-  runSilentTimeUnlockCheck(plant, now, settings, silentNow);
+  await runSilentTimeUnlockCheck(plant, now, settings, silentNow);
 
   insertLogStmt.run(
     plant.id,
@@ -469,7 +490,7 @@ export function receiveSensorData(req, res) {
     if (silentNow) {
       setPendingNotificationStmt.run(1, plant.id);
     } else {
-      insertNotificationStmt.run(plant.id, worstCandidate.message, worstCandidate.category);
+      await createNotification(plant.id, worstCandidate.message, worstCandidate.category);
     }
   }
 
