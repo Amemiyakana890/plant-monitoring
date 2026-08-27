@@ -27,7 +27,11 @@ Future<void> _pumpApp(WidgetTester tester) async {
   addTearDown(store.dispose);
   final themeController = ThemeController();
 
-  await store.loadInitial();
+  // pumpWidget()より前は一度もpump()が呼ばれておらず、testWidgets()の
+  // 偽の時計が進まないため、DummyPlantRepositoryのFuture.delayed(300ms)が
+  // 発火しないまま待ち続けてしまう。runAsync()で本物の非同期時間を
+  // 使って待つことで、この段階でも正しく完了を待てるようにする。
+  await tester.runAsync(() => store.loadInitial());
   await tester.pumpWidget(
     TestApp(store: store, themeController: themeController),
   );

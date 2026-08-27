@@ -251,7 +251,15 @@ class Plant {
       illuminance: (json['illuminance'] as num?)?.toDouble() ?? 0.0,
       status: PlantStatus.fromApi(json['status'] as String?),
       updatedAt: json['updated_at'] as String? ?? '',
-      tempStatus: EnvironmentLevel.fromApi(json['temp_status'] as String?),
+      // temp_status未指定時(センサー未受信でまだ一度も判定されていない場合)は
+      // EnvironmentLevel.fromApi(null)のデフォルトであるunknownではなく、
+      // コンストラクタのデフォルト値と同じhealthyにフォールバックする。
+      // 温度はリアルタイム評価のため「未評価ならunknown(評価準備中)」という
+      // 湿度・照度側の意味づけは合わず、「まだ悪化が検知されていない=健康」
+      // として扱う(models_test.dart参照)。
+      tempStatus: json['temp_status'] == null
+          ? EnvironmentLevel.healthy
+          : EnvironmentLevel.fromApi(json['temp_status'] as String?),
       humidityDailyStatus:
           EnvironmentLevel.fromApi(json['humidity_daily_status'] as String?),
       humidityDailyAvg: (json['humidity_daily_avg'] as num?)?.toDouble(),
