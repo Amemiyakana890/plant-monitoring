@@ -14,6 +14,12 @@ class HistoryLineChart extends StatelessWidget {
   final List<String> labels;
   final List<double> values;
 
+  /// タイトル行の下に右寄せで表示する補助コントロール
+  /// (履歴画面では24h/7d/30dの期間セレクターを渡す想定)。
+  /// 項目タブ(何を見るか)がこのカードの外側にある主タブなのに対し、
+  /// こちらは「いつを見るか」の従属コントロールとして小さく添える。
+  final Widget? trailingHeader;
+
   const HistoryLineChart({
     super.key,
     required this.title,
@@ -21,6 +27,7 @@ class HistoryLineChart extends StatelessWidget {
     required this.color,
     required this.labels,
     required this.values,
+    this.trailingHeader,
   });
 
   static String _formatValue(double value) {
@@ -94,6 +101,10 @@ class HistoryLineChart extends StatelessWidget {
                 ),
               ],
             ),
+            if (trailingHeader != null) ...[
+              const SizedBox(height: AppSpacing.extraSmall),
+              Align(alignment: Alignment.centerRight, child: trailingHeader),
+            ],
             const SizedBox(height: AppSpacing.medium),
             SizedBox(
               height: 160,

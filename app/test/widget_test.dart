@@ -73,7 +73,11 @@ void main() {
 
     await tester.tap(find.text('履歴').last);
     await _settle(tester);
-    expect(find.text('🌡 温度'), findsOneWidget);
+    // 履歴画面の項目タブは温度・湿度・土壌水分・光量の4つ。
+    // 初期選択は先頭の「温度」のため、項目タブの文言とグラフタイトルの
+    // 文言の2箇所に「温度」というテキストが表示される
+    // (履歴画面のレイアウト変更:項目タブ+単一グラフ表示に統一)。
+    expect(find.text('温度'), findsNWidgets(2));
 
     await tester.tap(find.text('通知').last);
     await _settle(tester);
