@@ -299,9 +299,13 @@ class _HistoryPageState extends State<HistoryPage> {
   /// 生ログから、新しい順に最大[count]件を取り出す
   /// (グラフは間引き後の傾向を見るためのもの、一覧は「今の実測値」を
   /// そのまま確認するためのもの、と役割を分けているため)。
-  List<EnvironmentLog> _latestRawLogs(List<EnvironmentLog> rawLogs, {int count = 3}) {
+  List<EnvironmentLog> _latestRawLogs(
+    List<EnvironmentLog> rawLogs, {
+    int count = 3,
+  }) {
     if (rawLogs.isEmpty) return const [];
-    final sorted = [...rawLogs]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final sorted = [...rawLogs]
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return sorted.take(count).toList();
   }
 }
@@ -388,28 +392,6 @@ class _EnvironmentDataList extends StatelessWidget {
 
   const _EnvironmentDataList({required this.logs});
 
-  static String _twoDigits(int n) => n.toString().padLeft(2, '0');
-
-  static String _formatTimestamp(DateTime t) =>
-      '${_twoDigits(t.month)}/${_twoDigits(t.day)} ${_twoDigits(t.hour)}:${_twoDigits(t.minute)}';
-
-  /// 1件分の値を、項目ごとに区切った文字列のリストで返す。
-  /// 従来は1本のRowに全部詰め込んで横幅オーバーフローの原因になっていたため、
-  /// build側で[Wrap]に渡して画面幅に応じて折り返せるようにする。
-  /// 並び順はホーム画面(plant_card.dart)と同じ:温度→湿度→土壌水分→光量。
-  static List<String> _formatValues(EnvironmentLog log) {
-    final temperature = log.temperature.toStringAsFixed(1);
-    final humidity = log.humidity.round();
-    final soil = log.soilMoisture.round();
-    final illuminance = log.illuminance.round();
-    return [
-      '温度$temperature℃',
-      '湿度$humidity%',
-      '土壌$soil%',
-      '光量${illuminance}lx',
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     if (logs.isEmpty) return const SizedBox.shrink();
@@ -437,32 +419,82 @@ class _EnvironmentDataList extends StatelessWidget {
               // Wrap(画面幅に収まらなければ自動で折り返す)にする。
               // 以前は1本のRowに全部並べていたため、画面幅が狭い環境
               // (Web版など)や光量が3桁になるケースで右端がはみ出していた。
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _formatTimestamp(logs[i].timestamp),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: mutedColor),
-                  ),
-                  const SizedBox(height: 2),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 2,
-                    children: [
-                      for (final (j, value) in _formatValues(logs[i]).indexed) ...[
-                        if (j > 0) Text('・', style: dotStyle),
-                        Text(value, style: valueStyle),
-                      ],
-                    ],
-                  ),
-                ],
+              _EnvironmentLogRow(
+                log: logs[i],
+                mutedColor: mutedColor,
+                valueStyle: valueStyle,
+                dotStyle: dotStyle,
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// [_EnvironmentDataList]の1件分の行(日付1行目 + 数値をWrapで2行目)。
+class _EnvironmentLogRow extends StatelessWidget {
+  final EnvironmentLog log;
+  final Color? mutedColor;
+  final TextStyle? valueStyle;
+  final TextStyle? dotStyle;
+
+  const _EnvironmentLogRow({
+    required this.log,
+    required this.mutedColor,
+    required this.valueStyle,
+    required this.dotStyle,
+  });
+
+  static String _twoDigits(int n) => n.toString().padLeft(2, '0');
+
+  static String _formatTimestamp(DateTime t) =>
+      '${_twoDigits(t.month)}/${_twoDigits(t.day)} '
+      '${_twoDigits(t.hour)}:${_twoDigits(t.minute)}';
+
+  /// 項目ごとに区切った文字列のリストを返す。
+  /// 従来は1本のRowに全部詰め込んで横幅オーバーフローの原因になっていたため、
+  /// build側で[Wrap]に渡して画面幅に応じて折り返せるようにする。
+  /// 並び順はホーム画面(plant_card.dart)と同じ:温度→湿度→土壌水分→光量。
+  static List<String> _formatValues(EnvironmentLog log) {
+    final temperature = log.temperature.toStringAsFixed(1);
+    final humidity = log.humidity.round();
+    final soil = log.soilMoisture.round();
+    final illuminance = log.illuminance.round();
+    return [
+      '温度$temperature℃',
+      '湿度$humidity%',
+      '土壌$soil%',
+      '光量${illuminance}lx',
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _formatValues(log);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _formatTimestamp(log.timestamp),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: mutedColor),
+        ),
+        const SizedBox(height: 2),
+        Wrap(
+          spacing: 4,
+          runSpacing: 2,
+          children: [
+            for (var j = 0; j < values.length; j++) ...[
+              if (j > 0) Text('・', style: dotStyle),
+              Text(values[j], style: valueStyle),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }
@@ -525,9 +557,7 @@ class _RangeSelector extends StatelessWidget {
             fontSize: compact ? 11 : 13,
             color: isSelected
                 ? (compact ? AppColors.textPrimary : Colors.white)
-                : AppColors.textPrimary.withValues(
-                    alpha: compact ? 0.5 : 1,
-                  ),
+                : AppColors.textPrimary.withValues(alpha: compact ? 0.5 : 1),
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
           ),
         ),
