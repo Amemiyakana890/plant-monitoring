@@ -203,20 +203,22 @@ class _SpeciesSelector extends StatelessWidget {
       );
     }
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (final species in store.speciesCatalog)
-            RadioListTile<String>(
-              value: species.key,
-              groupValue: selectedKey,
-              onChanged: onChanged,
-              activeColor: AppColors.primary,
-              title: Text(species.name),
-              subtitle: Text(species.scientificName),
-            ),
-        ],
+    return RadioGroup<String>(
+      groupValue: selectedKey,
+      onChanged: onChanged,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            for (final species in store.speciesCatalog)
+              RadioListTile<String>(
+                value: species.key,
+                activeColor: AppColors.primary,
+                title: Text(species.name),
+                subtitle: Text(species.scientificName),
+              ),
+          ],
+        ),
       ),
     );
   }
