@@ -80,7 +80,9 @@ void main() {
 
       await tester.tap(find.text('設定').last);
       await _settle(tester);
-      expect(find.text('Plant Monitor 01'), findsOneWidget);
+      // dummyPlantはdeviceIdを持たず、_devicesも空のため未接続表示になる
+      // (デバイスカードの機器名・デバイス情報の副題の2箇所に同じ文言が出る)。
+      expect(find.text('デバイス未接続'), findsWidgets);
     },
     timeout: const Timeout(Duration(seconds: 30)),
   );
@@ -93,10 +95,13 @@ void main() {
       await tester.tap(find.text('植物'));
       await _settle(tester);
 
-      await tester.tap(find.text('編集する'));
+      await tester.tap(find.text('植物名を編集する'));
       await _settle(tester);
 
-      await tester.enterText(find.widgetWithText(TextField, '植物名'), 'パキラ');
+      await tester.enterText(
+        find.widgetWithText(TextField, '植物名(ニックネーム)'),
+        'パキラ',
+      );
       await tester.tap(find.text('保存'));
       // store.updatePlant() はダミーの非同期通信(300ms)を経て反映されるため、
       // _settle でその完了を待つ。
