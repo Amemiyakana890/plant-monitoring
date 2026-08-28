@@ -29,6 +29,16 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      - name: Prepare .env
+        working-directory: app
+        # pubspec.yamlのassetsに.envを含めているため、実体が無いと
+        # `flutter analyze`がasset_does_not_exist警告で失敗する。
+        # ローカル開発時のREADMEの手順(cp .env.example .env)と同じ操作を
+        # CI上でも行うことで、コミットしていない.env自体は要求せずに済ませる。
+        # ここではFirebase等の実際の値は不要(analyze/testはビルド前の
+        # 静的チェックのみのため、ファイルが存在することだけが重要)。
+        run: cp .env.example .env
+
       - name: Check formatting
         working-directory: app
         run: dart format --output=none --set-exit-if-changed .
