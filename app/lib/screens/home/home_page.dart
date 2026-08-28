@@ -37,6 +37,7 @@ class HomePage extends StatelessWidget {
           temperature: '${plant.temperature}℃',
           humidity: '${plant.humidity}%',
           soilMoisture: '${plant.soilMoisture}%',
+          illuminance: '${plant.illuminance.toStringAsFixed(0)} lux',
         ),
       ],
     );

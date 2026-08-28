@@ -46,7 +46,19 @@ class EnvironmentMetricCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(label, style: Theme.of(context).textTheme.bodyMedium),
+                // カード幅が狭い(半分幅・狭いブラウザ幅など)環境で、
+                // ラベル(例:「土壌水分」)+アイコンがRenderFlowオーバーフロー
+                // していたため、_WateringFooterの「水やり」ボタンと同じ対処
+                // (Flexible + ellipsis)を入れて、入り切らない場合は確実に
+                // 省略表示になるようにしている。
+                Flexible(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 Icon(icon, color: iconColor),
               ],
             ),

@@ -62,6 +62,17 @@ class PushNotificationService {
     if (_initialized) return;
     _initialized = true;
 
+    // Web実行時は初期化自体をスキップする。要件定義書8章の対応OSは
+    // iOS/Androidのみで、Web実行(`flutter run -d chrome`)は開発確認用のため。
+    // また、firebase_messagingのWeb実装はgetToken()呼び出し時に
+    // Service Worker(web/firebase-messaging-sw.js)の登録を試みるが、
+    // 本プロジェクトはそのファイルを用意していないため、登録に失敗して
+    // 未処理のPromiseエラーになってしまう(コンソールに
+    // `failed-service-worker-registration`として出るのはこれが原因)。
+    // Web版のPush通知に本格対応する場合は、この早期returnを外した上で
+    // 該当のservice workerファイルを追加すること。
+    if (kIsWeb) return;
+
     await _createAndroidChannel();
 
     // Android 13(API 33)以降はランタイム通知権限が必要

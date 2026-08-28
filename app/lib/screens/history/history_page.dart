@@ -393,13 +393,21 @@ class _EnvironmentDataList extends StatelessWidget {
   static String _formatTimestamp(DateTime t) =>
       '${_twoDigits(t.month)}/${_twoDigits(t.day)} ${_twoDigits(t.hour)}:${_twoDigits(t.minute)}';
 
-  static String _formatRow(EnvironmentLog log) {
-    // ホーム画面(plant_card.dart)と同じ並び順:温度→湿度→土壌水分→光量。
+  /// 1件分の値を、項目ごとに区切った文字列のリストで返す。
+  /// 従来は1本のRowに全部詰め込んで横幅オーバーフローの原因になっていたため、
+  /// build側で[Wrap]に渡して画面幅に応じて折り返せるようにする。
+  /// 並び順はホーム画面(plant_card.dart)と同じ:温度→湿度→土壌水分→光量。
+  static List<String> _formatValues(EnvironmentLog log) {
     final temperature = log.temperature.toStringAsFixed(1);
     final humidity = log.humidity.round();
     final soil = log.soilMoisture.round();
     final illuminance = log.illuminance.round();
-    return '温度$temperature℃ ・ 湿度$humidity% ・ 土壌$soil% ・ 光量${illuminance}lx';
+    return [
+      '温度$temperature℃',
+      '湿度$humidity%',
+      '土壌$soil%',
+      '光量${illuminance}lx',
+    ];
   }
 
   @override
@@ -412,6 +420,8 @@ class _EnvironmentDataList extends StatelessWidget {
     final mutedColor = Theme.of(
       context,
     ).textTheme.bodyMedium?.color?.withValues(alpha: 0.6);
+    final valueStyle = Theme.of(context).textTheme.bodyMedium;
+    final dotStyle = valueStyle?.copyWith(color: mutedColor);
 
     return Card(
       child: Padding(
@@ -423,8 +433,12 @@ class _EnvironmentDataList extends StatelessWidget {
             const SizedBox(height: AppSpacing.small),
             for (var i = 0; i < logs.length; i++) ...[
               if (i > 0) const Divider(height: AppSpacing.large),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 日付・時刻は1行目に単独で表示し、4項目の数値は2行目で
+              // Wrap(画面幅に収まらなければ自動で折り返す)にする。
+              // 以前は1本のRowに全部並べていたため、画面幅が狭い環境
+              // (Web版など)や光量が3桁になるケースで右端がはみ出していた。
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     _formatTimestamp(logs[i].timestamp),
@@ -432,7 +446,17 @@ class _EnvironmentDataList extends StatelessWidget {
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: mutedColor),
                   ),
-                  Text(_formatRow(logs[i]), style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 2),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    children: [
+                      for (final (j, value) in _formatValues(logs[i]).indexed) ...[
+                        if (j > 0) Text('・', style: dotStyle),
+                        Text(value, style: valueStyle),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ],
