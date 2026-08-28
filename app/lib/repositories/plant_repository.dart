@@ -57,7 +57,10 @@ abstract class PlantRepository {
   /// POST /devices/pair 相当(設計書5-3)。
   /// 現状は実機のBLE/Wi-Fiスキャンには対応していないため、
   /// デバイス名・MACアドレスはアプリ側で手入力してもらう想定。
-  Future<Device> pairDevice({required String deviceName, required String macAddress});
+  Future<Device> pairDevice({
+    required String deviceName,
+    required String macAddress,
+  });
 
   /// DELETE /devices/:id 相当(設計書5-3「デバイスのペアリング解除」)
   Future<void> unpairDevice(int id);

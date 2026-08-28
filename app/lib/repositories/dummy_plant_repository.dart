@@ -111,7 +111,11 @@ class DummyPlantRepository implements PlantRepository {
         species: entry.scientificName,
       );
     } else {
-      _plant = _plant.copyWith(name: name, species: species, deviceId: deviceId);
+      _plant = _plant.copyWith(
+        name: name,
+        species: species,
+        deviceId: deviceId,
+      );
     }
     return _plant;
   }
@@ -189,7 +193,8 @@ class DummyPlantRepository implements PlantRepository {
 
     return EnvironmentLog(
       timestamp: t,
-      label: '${t.month}/${t.day} ${_twoDigits(t.hour)}:${_twoDigits(t.minute)}',
+      label:
+          '${t.month}/${t.day} ${_twoDigits(t.hour)}:${_twoDigits(t.minute)}',
       temperature: double.parse(temperature.toStringAsFixed(1)),
       humidity: double.parse(humidity.toStringAsFixed(1)),
       soilMoisture: double.parse(soilMoisture.toStringAsFixed(1)),
@@ -313,11 +318,7 @@ class DummyPlantRepository implements PlantRepository {
   // ---- 植物種カタログAPI(F-08・植物切り替え機能、ダミー実装) ----
 
   static const List<PlantSpecies> _dummySpeciesCatalog = [
-    PlantSpecies(
-      key: 'monstera',
-      name: 'モンステラ',
-      scientificName: 'サトイモ科モンステラ属',
-    ),
+    PlantSpecies(key: 'monstera', name: 'モンステラ', scientificName: 'サトイモ科モンステラ属'),
   ];
 
   @override

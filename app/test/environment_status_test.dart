@@ -58,7 +58,10 @@ void main() {
     test('healthy/caution/needs_careを正しく変換する', () {
       expect(EnvironmentLevel.fromApi('healthy'), EnvironmentLevel.healthy);
       expect(EnvironmentLevel.fromApi('caution'), EnvironmentLevel.caution);
-      expect(EnvironmentLevel.fromApi('needs_care'), EnvironmentLevel.needsCare);
+      expect(
+        EnvironmentLevel.fromApi('needs_care'),
+        EnvironmentLevel.needsCare,
+      );
     });
 
     test('null・未知の値はunknownになる(適正と誤解されないための安全側)', () {

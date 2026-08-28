@@ -27,7 +27,8 @@ class SettingsAppBar extends StatelessWidget {
     final theme = Theme.of(context);
     // ダークモードでも視認できるよう、固定の濃いグレー(AppColors.textPrimary)
     // ではなく、テーマのテキスト色(ライト:濃いグレー/ダーク:白)を使う。
-    final onBackgroundColor = theme.textTheme.bodyLarge?.color ?? theme.colorScheme.onSurface;
+    final onBackgroundColor =
+        theme.textTheme.bodyLarge?.color ?? theme.colorScheme.onSurface;
 
     return Container(
       color: AppColors.primary,

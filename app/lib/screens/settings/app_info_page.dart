@@ -39,11 +39,7 @@ class AppInfoPage extends StatelessWidget {
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(AppRadii.medium),
                     ),
-                    child: const Icon(
-                      Icons.eco,
-                      color: Colors.white,
-                      size: 36,
-                    ),
+                    child: const Icon(Icons.eco, color: Colors.white, size: 36),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.medium),
@@ -75,12 +71,11 @@ class AppInfoPage extends StatelessWidget {
                       children: [
                         Text(
                           'アプリについて',
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodySmall?.copyWith(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                         const SizedBox(height: AppSpacing.small),
                         Text(
@@ -117,8 +112,7 @@ class AppInfoPage extends StatelessWidget {
                         icon: Icons.balance,
                         iconBackground: AppColors.accent,
                         title: 'オープンソースライセンス',
-                        onTap: () =>
-                            _showComingSoon(context, 'オープンソースライセンス'),
+                        onTap: () => _showComingSoon(context, 'オープンソースライセンス'),
                       ),
                       const Divider(height: 1),
                       _AppInfoTile(

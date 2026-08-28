@@ -12,8 +12,8 @@ class MainTabControllerScope extends InheritedNotifier<MainTabController> {
   }) : super(notifier: controller);
 
   static MainTabController of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<MainTabControllerScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<MainTabControllerScope>();
     assert(
       scope != null,
       'MainTabControllerScope が見つかりません(main.dartの設定を確認してください)',

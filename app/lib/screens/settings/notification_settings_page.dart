@@ -111,9 +111,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                             const Divider(height: 1),
                             SwitchListTile(
                               title: const Text('照度アラート'),
-                              subtitle: const Text(
-                                '日中の日照が1日の平均で不足している時に通知します',
-                              ),
+                              subtitle: const Text('日中の日照が1日の平均で不足している時に通知します'),
                               value: settings.illuminanceAlertEnabled,
                               onChanged: (value) => _update(
                                 settings.copyWith(
@@ -141,7 +139,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                         Text(
                           store.notificationSettingsErrorMessage!,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Theme.of(context).colorScheme.error),
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
                         ),
                       ],
                     ],

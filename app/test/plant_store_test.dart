@@ -179,11 +179,7 @@ class FakePlantRepository implements PlantRepository {
   // ---- 植物種カタログAPI(F-08・植物切り替え機能) ----
 
   List<PlantSpecies> speciesCatalog = const [
-    PlantSpecies(
-      key: 'monstera',
-      name: 'モンステラ',
-      scientificName: 'サトイモ科モンステラ属',
-    ),
+    PlantSpecies(key: 'monstera', name: 'モンステラ', scientificName: 'サトイモ科モンステラ属'),
   ];
   bool throwOnFetchSpeciesCatalog = false;
 
@@ -370,7 +366,10 @@ void main() {
       );
 
       expect(ok, false);
-      expect(store.notificationSettings?.soilAlertEnabled, original.soilAlertEnabled);
+      expect(
+        store.notificationSettings?.soilAlertEnabled,
+        original.soilAlertEnabled,
+      );
       expect(store.notificationSettingsErrorMessage, isNotNull);
     });
   });

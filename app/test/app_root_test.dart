@@ -223,27 +223,23 @@ void main() {
     timeout: const Timeout(Duration(seconds: 30)),
   );
 
-  testWidgets(
-    '植物種を選ばずに送信すると、登録されずエラー文言が表示される',
-    (tester) async {
-      await _pumpApp(tester, startsRegistered: false);
+  testWidgets('植物種を選ばずに送信すると、登録されずエラー文言が表示される', (tester) async {
+    await _pumpApp(tester, startsRegistered: false);
 
-      await tester.enterText(
-        find.widgetWithText(TextField, '植物名(ニックネーム)'),
-        'ハスター',
-      );
+    await tester.enterText(
+      find.widgetWithText(TextField, '植物名(ニックネーム)'),
+      'ハスター',
+    );
 
-      // 植物種は選ばずに送信する。
-      await tester.tap(find.text('この内容で登録する'));
-      await _settle(tester);
+    // 植物種は選ばずに送信する。
+    await tester.tap(find.text('この内容で登録する'));
+    await _settle(tester);
 
-      // 未選択のまま登録できてしまわないこと(=通知条件の閾値が
-      // 植物種ごとに異なる以上、未選択のまま作らせない、という
-      // PlantRepository.createPlant()のドキュメントコメント通りの挙動)。
-      expect(find.text('植物種を選択してください'), findsOneWidget);
-      expect(find.byType(PlantRegistrationPage), findsOneWidget);
-      expect(find.byType(MainPage), findsNothing);
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
+    // 未選択のまま登録できてしまわないこと(=通知条件の閾値が
+    // 植物種ごとに異なる以上、未選択のまま作らせない、という
+    // PlantRepository.createPlant()のドキュメントコメント通りの挙動)。
+    expect(find.text('植物種を選択してください'), findsOneWidget);
+    expect(find.byType(PlantRegistrationPage), findsOneWidget);
+    expect(find.byType(MainPage), findsNothing);
+  }, timeout: const Timeout(Duration(seconds: 30)));
 }

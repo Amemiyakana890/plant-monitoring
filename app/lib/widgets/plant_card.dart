@@ -120,9 +120,7 @@ class _WateringFooter extends StatelessWidget {
     final ok = await store.recordWatering();
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(store.wateringErrorMessage ?? '水やりの記録に失敗しました'),
-        ),
+        SnackBar(content: Text(store.wateringErrorMessage ?? '水やりの記録に失敗しました')),
       );
     }
   }

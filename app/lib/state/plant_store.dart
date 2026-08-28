@@ -180,7 +180,11 @@ class PlantStore extends ChangeNotifier {
   /// [speciesKey]は植物種の選択(F-08・植物切り替え機能)専用。
   /// nameとは独立して扱われる(「植物名は自由入力、植物種はシステム的に
   /// 選択する」という運用のため。screens/plant_info/plant_info_page.dart参照)。
-  Future<bool> updatePlant({String? name, String? species, String? speciesKey}) async {
+  Future<bool> updatePlant({
+    String? name,
+    String? species,
+    String? speciesKey,
+  }) async {
     errorMessage = null;
     try {
       plant = await _repository.updatePlant(

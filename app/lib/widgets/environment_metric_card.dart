@@ -100,9 +100,9 @@ class EnvironmentMetricCard extends StatelessWidget {
               child: (statusCaption != null && statusCaption!.isNotEmpty)
                   ? Text(
                       statusCaption!,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Colors.grey,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: Colors.grey),
                     )
                   : null,
             ),

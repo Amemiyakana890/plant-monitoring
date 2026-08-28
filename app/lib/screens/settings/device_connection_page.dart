@@ -92,7 +92,9 @@ class _DeviceConnectionPageState extends State<DeviceConnectionPage> {
         : 'デバイスを登録しました';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? successMessage : (store.pairErrorMessage ?? '登録に失敗しました')),
+        content: Text(
+          success ? successMessage : (store.pairErrorMessage ?? '登録に失敗しました'),
+        ),
       ),
     );
   }
@@ -154,9 +156,7 @@ class _DeviceConnectionPageState extends State<DeviceConnectionPage> {
                   const SizedBox(height: AppSpacing.small),
                   if (store.isLoadingDevices)
                     const Padding(
-                      padding: EdgeInsets.symmetric(
-                        vertical: AppSpacing.large,
-                      ),
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.large),
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else if (store.devicesErrorMessage != null)

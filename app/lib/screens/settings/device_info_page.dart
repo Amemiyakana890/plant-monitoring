@@ -117,10 +117,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
           label: 'バッテリー残量',
           value: device.batteryLevel != null ? '${device.batteryLevel}%' : '-',
         ),
-        _InfoTile(
-          label: 'ファームウェアバージョン',
-          value: device.firmwareVersion ?? '-',
-        ),
+        _InfoTile(label: 'ファームウェアバージョン', value: device.firmwareVersion ?? '-'),
         _InfoTile(label: 'MACアドレス', value: device.macAddress),
       ],
     );
@@ -139,10 +136,7 @@ class _InfoTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: AppSpacing.small),
       child: ListTile(
         title: Text(label),
-        trailing: Text(
-          value,
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
+        trailing: Text(value, style: Theme.of(context).textTheme.bodyLarge),
       ),
     );
   }

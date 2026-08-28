@@ -78,10 +78,7 @@ class _HistoryPageState extends State<HistoryPage> {
             '${_twoDigits(bucketStart.hour)}:${_twoDigits(bucketStart.minute)}',
       );
     }
-    return _evenlySpacedLabels(
-      logs,
-      formatOf: (t) => '${t.month}/${t.day}',
-    );
+    return _evenlySpacedLabels(logs, formatOf: (t) => '${t.month}/${t.day}');
   }
 
   /// X軸に表示するラベルの最大個数(7d/30dで使用)。
@@ -177,7 +174,10 @@ class _HistoryPageState extends State<HistoryPage> {
   /// 最大[maxPoints]件程度まで間引く。
   /// 連続する数件を1つのグループにまとめ、各項目の平均値を取る
   /// (簡易的なダウンサンプリング。区間内の最初の点のtimestampを代表値として使う)。
-  List<EnvironmentLog> _downsample(List<EnvironmentLog> logs, {int maxPoints = 60}) {
+  List<EnvironmentLog> _downsample(
+    List<EnvironmentLog> logs, {
+    int maxPoints = 60,
+  }) {
     if (logs.length <= maxPoints) return logs;
 
     final bucketSize = (logs.length / maxPoints).ceil();

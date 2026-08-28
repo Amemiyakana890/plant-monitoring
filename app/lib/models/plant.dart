@@ -260,8 +260,9 @@ class Plant {
       tempStatus: json['temp_status'] == null
           ? EnvironmentLevel.healthy
           : EnvironmentLevel.fromApi(json['temp_status'] as String?),
-      humidityDailyStatus:
-          EnvironmentLevel.fromApi(json['humidity_daily_status'] as String?),
+      humidityDailyStatus: EnvironmentLevel.fromApi(
+        json['humidity_daily_status'] as String?,
+      ),
       humidityDailyAvg: (json['humidity_daily_avg'] as num?)?.toDouble(),
       humidityEvaluatedAt: json['humidity_evaluated_at'] as String?,
       illuminanceDailyStatus: EnvironmentLevel.fromApi(

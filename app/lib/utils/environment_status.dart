@@ -36,11 +36,23 @@ EnvironmentStatus environmentStatusFromLevel(
 }) {
   switch (level) {
     case EnvironmentLevel.healthy:
-      return EnvironmentStatus(ratio: ratio, label: '適正', color: AppColors.success);
+      return EnvironmentStatus(
+        ratio: ratio,
+        label: '適正',
+        color: AppColors.success,
+      );
     case EnvironmentLevel.caution:
-      return EnvironmentStatus(ratio: ratio, label: '注意', color: AppColors.warning);
+      return EnvironmentStatus(
+        ratio: ratio,
+        label: '注意',
+        color: AppColors.warning,
+      );
     case EnvironmentLevel.needsCare:
-      return EnvironmentStatus(ratio: ratio, label: '要ケア', color: AppColors.error);
+      return EnvironmentStatus(
+        ratio: ratio,
+        label: '要ケア',
+        color: AppColors.error,
+      );
     case EnvironmentLevel.unknown:
       // 湿度・照度は1日1回(15:00)の評価のため、セットアップ直後などまだ
       // 一度も評価されていない場合がある(docs 3-6章)。誤って「適正」と
@@ -80,10 +92,18 @@ double humidityRatio(double humidity) => _clampRatio(humidity, 0, 100);
 EnvironmentStatus soilMoistureStatus(double soil) {
   final ratio = _clampRatio(soil, 0, 100);
   if (soil >= 40) {
-    return EnvironmentStatus(ratio: ratio, label: '適正', color: AppColors.success);
+    return EnvironmentStatus(
+      ratio: ratio,
+      label: '適正',
+      color: AppColors.success,
+    );
   }
   if (soil >= 20) {
-    return EnvironmentStatus(ratio: ratio, label: '注意', color: AppColors.warning);
+    return EnvironmentStatus(
+      ratio: ratio,
+      label: '注意',
+      color: AppColors.warning,
+    );
   }
   return EnvironmentStatus(ratio: ratio, label: '要ケア', color: AppColors.error);
 }
@@ -92,4 +112,5 @@ EnvironmentStatus soilMoistureStatus(double soil) {
 ///
 /// ラベル・色は[Plant.illuminanceDailyStatus](サーバー側の昼間平均による
 /// 日次評価、docs 3-4章)を使う。詳細はtemperatureRatioのコメントと同様。
-double illuminanceRatio(double illuminance) => _clampRatio(illuminance, 0, 10000);
+double illuminanceRatio(double illuminance) =>
+    _clampRatio(illuminance, 0, 10000);

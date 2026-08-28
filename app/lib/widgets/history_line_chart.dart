@@ -58,7 +58,9 @@ class HistoryLineChart extends StatelessWidget {
     final rawRange = (rawMax - rawMin).abs();
     // 全データが同一の値の場合、範囲がゼロだと目盛りが作れないため
     // 値の大きさに応じた最低限の範囲を確保する(0の場合はさらに1をフォールバック)。
-    final safeRange = rawRange > 0 ? rawRange : (rawMax.abs() * 0.1).clamp(1, double.infinity);
+    final safeRange = rawRange > 0
+        ? rawRange
+        : (rawMax.abs() * 0.1).clamp(1, double.infinity);
 
     // 目盛り数の目安(3分割)を基準に、見やすい間隔(1/2/5/10系)へ丸める。
     // これにより「32.3」「29.1」のような半端な数値ではなく、

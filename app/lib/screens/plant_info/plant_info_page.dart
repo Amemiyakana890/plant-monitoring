@@ -245,10 +245,7 @@ class _CareProfileCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'この植物の管理条件',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('この植物の管理条件', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 2),
             Text(
               '${plant.speciesInfo.name} / ${profile.seasonLabel}モード',
@@ -416,9 +413,8 @@ class _PlantPhotoHeader extends StatelessWidget {
       child: Image.asset(
         assetPath,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _PhotoFallback(
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        errorBuilder: (context, error, stackTrace) =>
+            _PhotoFallback(color: Theme.of(context).colorScheme.primary),
       ),
     );
   }
@@ -436,11 +432,18 @@ class _PhotoFallback extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color.withValues(alpha: 0.12), color.withValues(alpha: 0.28)],
+          colors: [
+            color.withValues(alpha: 0.12),
+            color.withValues(alpha: 0.28),
+          ],
         ),
       ),
       child: Center(
-        child: Icon(Icons.local_florist, size: 56, color: color.withValues(alpha: 0.55)),
+        child: Icon(
+          Icons.local_florist,
+          size: 56,
+          color: color.withValues(alpha: 0.55),
+        ),
       ),
     );
   }

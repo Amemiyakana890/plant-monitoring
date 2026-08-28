@@ -12,8 +12,8 @@ class ThemeControllerScope extends InheritedNotifier<ThemeController> {
   }) : super(notifier: controller);
 
   static ThemeController of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<ThemeControllerScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<ThemeControllerScope>();
     assert(
       scope != null,
       'ThemeControllerScope が見つかりません(main.dartの設定を確認してください)',

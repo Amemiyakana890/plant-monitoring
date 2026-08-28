@@ -56,9 +56,9 @@ class _LoginPageState extends State<LoginPage> {
         : await store.signIn(email: email, password: password);
 
     if (!success && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(store.errorMessage ?? 'ログインできませんでした')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(store.errorMessage ?? 'ログインできませんでした')),
+      );
     }
     // 成功時は何もしない。AuthStore.currentUserが更新されると
     // AuthGateが自動的に切り替える。
@@ -145,9 +145,7 @@ class _LoginPageState extends State<LoginPage> {
                       _triedSubmit = false;
                     }),
               child: Text(
-                _isRegisterMode
-                    ? 'すでにアカウントをお持ちの方はこちら'
-                    : 'はじめての方はこちら(アカウントを作成)',
+                _isRegisterMode ? 'すでにアカウントをお持ちの方はこちら' : 'はじめての方はこちら(アカウントを作成)',
               ),
             ),
           ],

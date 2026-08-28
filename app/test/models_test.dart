@@ -66,7 +66,10 @@ void main() {
 
       // 温度・湿度・照度の状態判定フィールド(docs/status-notification-design.md)も
       // 未設定時にnullを許容し、EnvironmentLevel.unknown/nullへフォールバックする。
-      expect(plant.tempStatus, EnvironmentLevel.healthy); // temp_status未指定時のデフォルト
+      expect(
+        plant.tempStatus,
+        EnvironmentLevel.healthy,
+      ); // temp_status未指定時のデフォルト
       expect(plant.humidityDailyStatus, EnvironmentLevel.unknown);
       expect(plant.humidityDailyAvg, null);
       expect(plant.illuminanceDailyStatus, EnvironmentLevel.unknown);

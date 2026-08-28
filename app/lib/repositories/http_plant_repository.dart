@@ -167,9 +167,7 @@ class HttpPlantRepository implements PlantRepository {
     _ensureOk(res, 'GET /devices');
 
     final list = jsonDecode(res.body) as List<dynamic>;
-    return list
-        .map((e) => Device.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return list.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   @override
