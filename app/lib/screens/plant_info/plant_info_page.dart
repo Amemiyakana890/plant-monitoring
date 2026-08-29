@@ -346,14 +346,26 @@ class _CareConditionTile extends StatelessWidget {
   }
 }
 
-/// 植物情報カード上部の「植物名」「植物種」のような、ラベル+値の1行表示。
+/// 植物情報カード上部の「植物名」「植物種」のような、ラベル+値の1項目表示。
 ///
-/// 以前は`ListTile(title:, trailing:)`を使っていたが、trailingに長い文字列
-/// (例:「サトイモ科モンステラ属」)を渡すと、ListTile独自のレイアウト計算で
-/// 「Trailing widget consumes the entire tile width」という例外や
-/// RenderFlexオーバーフローが発生する不具合があった。ListTileに頼らず、
-/// 自前のRow(ラベル側をExpanded、値側をFlexible+省略表示)に置き換えることで、
-/// 値がどれだけ長くてもエラーにならず安全に収まるようにしている。
+/// 経緯:
+/// 1. 元々は`ListTile(title:, trailing:)`だったが、trailingに長い文字列
+///    (例:「サトイモ科モンステラ属」)を渡すと、ListTile独自のレイアウト
+///    計算で「Trailing widget consumes the entire tile width」という
+///    例外やRenderFlexオーバーフローが発生する不具合があった。
+/// 2. 自前のRow(ラベル側をExpanded、値側をFlexible+1行省略表示)に
+///    置き換えてエラー自体は解消したが、今度は値が長いと1行に収まらず
+///    末尾が省略されて読めなくなる問題が残っていた
+///    (例:「サトイモ科モンステ…」)。
+/// 3. ラベル・値を同じ行にまとめて1つのTextとして左詰めで描画する形も
+///    試したが、値が短い場合(「ハスター」など)にラベルのすぐ右へ値が
+///    隣接してしまい、カード右側に大きな余白が残って間延びして見える
+///    という指摘があった。
+///
+/// 最終的に、見た目は元のRow(ラベル左・値右)に戻しつつ、値側の
+/// `maxLines`制限だけを外し、省略(ellipsis)せず自然に折り返す形にした。
+/// 値が短ければ従来通りラベルと値が両端に分かれてすっきり収まり、
+/// 長い場合も文字が欠けることなく複数行に折り返される。
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -365,16 +377,13 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
-          ),
+          Text(label, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(width: AppSpacing.small),
-          Flexible(
+          Expanded(
             child: Text(
               value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
