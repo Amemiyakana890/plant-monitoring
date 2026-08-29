@@ -107,65 +107,140 @@ class _HistoryPageState extends State<HistoryPage> {
     setState(() => _metricKey = key);
   }
 
-  /// [logs]の各データ点に対応するX軸ラベルを、選択中の[range]に応じて
-  /// 実際の日時([EnvironmentLog.timestamp])から組み立てる。
+  /// [logs]の各データ点をグラフのX座標に変換する。
+  /// 「先頭データ点からの経過時間」(時間単位のdouble)を使うことで、
+  /// データ点の間隔(何番目かというインデックス)ではなく実際の経過時間が
+  /// そのままグラフ上の横方向の間隔に反映されるようにする。
   ///
-  /// - 24h: 3時間ごとの区切り(00:00 / 03:00 / 06:00 …)の最初の点にだけ
-  ///   "HH:mm" を表示し、それ以外は空文字にする。
-  /// - 7d / 30d: 間引き後の点数に応じて均等な間隔(最大[_maxDateLabels]個)で
-  ///   "M/d" を表示する。カレンダー上の「日付が変わる境界」ではなく、
-  ///   表示する点の総数を基準に間隔を決めるため、30dのように期間が長く
-  ///   間引き後も日境界の数自体が多いケースでも、ラベルが詰まって
-  ///   重ならないようにしている。
-  List<String> _labelsFor(List<EnvironmentLog> logs, String range) {
+  /// 以前はインデックスをそのままX座標に使っていたため、デバイスの
+  /// オン/オフなどでデータが疎になった時間帯があっても、グラフ上は
+  /// 隣のデータ点と均等な間隔に詰めて描画されてしまっていた。
+  List<double> _chartXValues(List<EnvironmentLog> logs) {
+    if (logs.isEmpty) return const [];
+    final base = logs.first.timestamp;
+    return [
+      for (final log in logs) log.timestamp.difference(base).inSeconds / 3600.0,
+    ];
+  }
+
+  /// X軸のラベルを、選択中の[range]に応じて「実際の時刻をもとにした
+  /// 理想的な等間隔の目盛り時刻」を先に決め、それぞれに最も近い実データ点へ
+  /// 割り当てる方式で組み立てる。
+  ///
+  /// - 24h: 3時間ごとの壁時計上の区切り(00:00 / 03:00 / 06:00 …)を理想時刻
+  ///   とし、表示範囲に含まれるものだけを対象にする。
+  /// - 7d / 30d: 表示期間全体を最大[_maxDateLabels]個に均等分割した理想時刻
+  ///   を対象にする。
+  ///
+  /// 以前は「データ点の何番目かで区切りが変わった瞬間」にラベルを置いて
+  /// いたため、デバイスをオン/オフした前後でデータが疎になる区間があると、
+  /// その前後のわずかなインデックス差の中で複数の区切りをまたいでしまい、
+  /// ラベルが密集して重なって表示される問題があった。理想時刻→最近傍点、
+  /// という組み立て方に変えることで、ラベルは実時間として本当に等間隔になり、
+  /// 密集も起きにくくなる。
+  Map<int, String> _chartLabels(
+    List<EnvironmentLog> logs,
+    List<double> xValues,
+    String range,
+  ) {
+    if (logs.isEmpty) return const {};
+
     if (range == '24h') {
-      return _boundaryLabels(
-        logs,
-        bucketKeyOf: (t) => DateTime(t.year, t.month, t.day, (t.hour ~/ 3) * 3),
-        formatOf: (bucketStart) =>
-            '${_twoDigits(bucketStart.hour)}:${_twoDigits(bucketStart.minute)}',
+      final idealTimes = _threeHourBoundaries(
+        logs.first.timestamp,
+        logs.last.timestamp,
+      );
+      return _nearestPointLabels(
+        logs: logs,
+        xValues: xValues,
+        idealTimes: idealTimes,
+        // 実データ点の細かい時刻ではなく、区切りの時刻そのもの
+        // (00:00, 03:00 …)を表示することで、ラベルがきれいな値になる。
+        formatOf: (idealTime, actualTime) =>
+            '${_twoDigits(idealTime.hour)}:${_twoDigits(idealTime.minute)}',
       );
     }
-    return _evenlySpacedLabels(logs, formatOf: (t) => '${t.month}/${t.day}');
+
+    final idealTimes = _evenlySpacedTimes(
+      logs.first.timestamp,
+      logs.last.timestamp,
+      _maxDateLabels,
+    );
+    return _nearestPointLabels(
+      logs: logs,
+      xValues: xValues,
+      idealTimes: idealTimes,
+      // 日付ラベルは、区切り時刻そのものではなく実際に一番近いデータ点の
+      // 日付を表示する(区切り時刻自体はグラフ上に存在しない架空の時刻の
+      // ため、実データの日付の方が自然)。
+      formatOf: (idealTime, actualTime) =>
+          '${actualTime.month}/${actualTime.day}',
+    );
   }
 
   /// X軸に表示するラベルの最大個数(7d/30dで使用)。
-  /// これより多くの日境界があっても、この個数に収まるよう間隔を空けて表示する。
   static const int _maxDateLabels = 6;
 
-  /// [logs]の点数に応じて、最大[_maxDateLabels]個になるよう均等な間隔で
-  /// ラベルを配置する(それ以外の点は空文字にする)。
-  List<String> _evenlySpacedLabels(
-    List<EnvironmentLog> logs, {
-    required String Function(DateTime timestamp) formatOf,
-  }) {
-    final labels = List<String>.filled(logs.length, '');
-    if (logs.isEmpty) return labels;
-
-    final step = (logs.length / _maxDateLabels).ceil().clamp(1, logs.length);
-    for (var i = 0; i < logs.length; i += step) {
-      labels[i] = formatOf(logs[i].timestamp);
+  /// [start]〜[end]の範囲に含まれる、3時間おきの壁時計上の区切り時刻
+  /// (00:00, 03:00, 06:00 …)を列挙する。
+  List<DateTime> _threeHourBoundaries(DateTime start, DateTime end) {
+    var boundary = DateTime(
+      start.year,
+      start.month,
+      start.day,
+      (start.hour ~/ 3) * 3,
+    );
+    while (boundary.isBefore(start)) {
+      boundary = boundary.add(const Duration(hours: 3));
     }
-    return labels;
+    final boundaries = <DateTime>[];
+    while (!boundary.isAfter(end)) {
+      boundaries.add(boundary);
+      boundary = boundary.add(const Duration(hours: 3));
+    }
+    return boundaries;
   }
 
-  List<String> _boundaryLabels(
-    List<EnvironmentLog> logs, {
-    required DateTime Function(DateTime timestamp) bucketKeyOf,
-    required String Function(DateTime bucketStart) formatOf,
+  /// [start]〜[end]を[count]個に均等分割した時刻を列挙する
+  /// ([start]と[end]自身を含む)。
+  List<DateTime> _evenlySpacedTimes(DateTime start, DateTime end, int count) {
+    final totalMicroseconds = end.difference(start).inMicroseconds;
+    if (totalMicroseconds <= 0 || count <= 1) return [start];
+    return [
+      for (var k = 0; k < count; k++)
+        start.add(
+          Duration(
+            microseconds: (totalMicroseconds * (k / (count - 1))).round(),
+          ),
+        ),
+    ];
+  }
+
+  /// [idealTimes]それぞれについて、[logs]の中から時刻が最も近いデータ点を
+  /// 探し、その点のX座標(小数を丸めた整数値)にラベルを割り当てる。
+  /// 複数の理想時刻が同じ実データ点に最も近くなった場合は、同じキーになる
+  /// ため自然に1つへ統合される(密集の再発防止)。
+  Map<int, String> _nearestPointLabels({
+    required List<EnvironmentLog> logs,
+    required List<double> xValues,
+    required List<DateTime> idealTimes,
+    required String Function(DateTime idealTime, DateTime actualTime) formatOf,
   }) {
-    final labels = <String>[];
-    DateTime? lastBucket;
-    for (final log in logs) {
-      final bucket = bucketKeyOf(log.timestamp);
-      if (bucket != lastBucket) {
-        labels.add(formatOf(bucket));
-        lastBucket = bucket;
-      } else {
-        labels.add('');
+    final result = <int, String>{};
+    for (final idealTime in idealTimes) {
+      var nearestIndex = 0;
+      var nearestDiff = logs[0].timestamp.difference(idealTime).abs();
+      for (var i = 1; i < logs.length; i++) {
+        final diff = logs[i].timestamp.difference(idealTime).abs();
+        if (diff < nearestDiff) {
+          nearestDiff = diff;
+          nearestIndex = i;
+        }
       }
+      final key = xValues[nearestIndex].round();
+      result[key] = formatOf(idealTime, logs[nearestIndex].timestamp);
     }
-    return labels;
+    return result;
   }
 
   String _twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -273,7 +348,8 @@ class _HistoryPageState extends State<HistoryPage> {
   /// 項目タブと縦に2段並ぶことによる圧迫感を避ける。
   List<Widget> _buildSingleChart(List<EnvironmentLog> rawLogs) {
     final logs = _downsampleCached(rawLogs);
-    final labels = _labelsFor(logs, _range);
+    final xValues = _chartXValues(logs);
+    final xLabels = _chartLabels(logs, xValues, _range);
     final metric = _metricOptions.firstWhere((m) => m.key == _metricKey);
 
     return [
@@ -281,7 +357,8 @@ class _HistoryPageState extends State<HistoryPage> {
         title: metric.label,
         unit: metric.unit,
         color: metric.color,
-        labels: labels,
+        xValues: xValues,
+        xLabels: xLabels,
         values: logs.map(metric.valueOf).toList(),
         trailingHeader: _RangeSelector(
           options: _rangeOptions,

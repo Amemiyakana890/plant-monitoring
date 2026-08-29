@@ -6,12 +6,24 @@ import 'package:flutter/material.dart';
 import '../theme/app_dimensions.dart';
 
 /// 履歴画面で使う、1項目分の推移を表示するカード。
-/// [labels]は各データ点のX軸ラベル(日付など)、[values]は対応する数値。
+/// [xValues]は各データ点の実際の経過時間(先頭データ点からの経過時間、
+/// 時間単位のdouble)、[values]は対応する数値。
+/// [xLabels]はX軸に文字ラベルを表示する位置(=[xValues]を丸めた整数値)と
+/// 表示文字列の対応表。
+///
+/// 以前は「データ点の何番目か(インデックス)」をそのままX座標として使い、
+/// ラベルもインデックス位置に紐付けていた。これだとデバイスの再起動・
+/// オフライン等でデータが疎になった時間帯があっても、隣り合うデータ点の
+/// 間隔が実時間としては大きく離れているのにグラフ上では均等に詰めて
+/// 描画されてしまい、その前後でラベルが密集して重なる問題があった。
+/// 実際の経過時間をX座標に使うことで、データの空白期間はグラフ上でも
+/// 正しく間延びして表現され、ラベルの位置も実時間ベースで自然に分散する。
 class HistoryLineChart extends StatelessWidget {
   final String title;
   final String unit;
   final Color color;
-  final List<String> labels;
+  final List<double> xValues;
+  final Map<int, String> xLabels;
   final List<double> values;
 
   /// タイトル行の下に右寄せで表示する補助コントロール
@@ -25,7 +37,8 @@ class HistoryLineChart extends StatelessWidget {
     required this.title,
     required this.unit,
     required this.color,
-    required this.labels,
+    required this.xValues,
+    required this.xLabels,
     required this.values,
     this.trailingHeader,
   });
@@ -110,6 +123,8 @@ class HistoryLineChart extends StatelessWidget {
               height: 160,
               child: LineChart(
                 LineChartData(
+                  minX: xValues.first,
+                  maxX: xValues.last,
                   minY: displayMinY,
                   maxY: displayMaxY,
                   gridData: FlGridData(
@@ -155,16 +170,19 @@ class HistoryLineChart extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 24,
+                        // 実時間(時間単位)の軸に対して1時間刻みで評価し、
+                        // xLabelsに登録されている位置(=ラベルを表示したい
+                        // 実データ点に最も近い整数値)にだけ文字を出す。
                         interval: 1,
                         getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
-                          if (index < 0 || index >= labels.length) {
+                          final text = xLabels[value.round()];
+                          if (text == null || text.isEmpty) {
                             return const SizedBox.shrink();
                           }
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              labels[index],
+                              text,
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           );
@@ -221,7 +239,7 @@ class HistoryLineChart extends StatelessWidget {
                     LineChartBarData(
                       spots: [
                         for (var i = 0; i < values.length; i++)
-                          FlSpot(i.toDouble(), values[i]),
+                          FlSpot(xValues[i], values[i]),
                       ],
                       isCurved: true,
                       color: color,
