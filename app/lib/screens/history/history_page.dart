@@ -124,41 +124,39 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   /// X軸のラベルを、選択中の[range]に応じて「実際の時刻をもとにした
-  /// 理想的な等間隔の目盛り時刻」を先に決め、それぞれに最も近い実データ点へ
-  /// 割り当てる方式で組み立てる。
+  /// 理想的な等間隔の目盛り時刻」から直接組み立てる。
   ///
-  /// - 24h: 3時間ごとの壁時計上の区切り(00:00 / 03:00 / 06:00 …)を理想時刻
-  ///   とし、表示範囲に含まれるものだけを対象にする。
-  /// - 7d / 30d: 表示期間全体を最大[_maxDateLabels]個に均等分割した理想時刻
-  ///   を対象にする。
+  /// - 24h: 3時間ごとの壁時計上の区切り(00:00 / 03:00 / 06:00 …)を対象と
+  ///   する。
+  /// - 7d / 30d: 表示期間全体を最大[_maxDateLabels]個に均等分割した時刻を
+  ///   対象とする。
   ///
-  /// 以前は「データ点の何番目かで区切りが変わった瞬間」にラベルを置いて
-  /// いたため、デバイスをオン/オフした前後でデータが疎になる区間があると、
-  /// その前後のわずかなインデックス差の中で複数の区切りをまたいでしまい、
-  /// ラベルが密集して重なって表示される問題があった。理想時刻→最近傍点、
-  /// という組み立て方に変えることで、ラベルは実時間として本当に等間隔になり、
-  /// 密集も起きにくくなる。
-  Map<int, String> _chartLabels(
-    List<EnvironmentLog> logs,
-    List<double> xValues,
-    String range,
-  ) {
+  /// X軸はすでに実際の経過時間([_chartXValues])を使っているため、理想時刻
+  /// をそのまま同じ計算式でX座標に変換して使えば、データの疎密に関係なく
+  /// 画面上で正確に等間隔で並ぶ。
+  ///
+  /// (以前は「理想時刻に一番近い実データ点」を探してそこにラベルを
+  /// 置いていたが、間引き([_downsample])は生ログの件数を基準に均等分割
+  /// しているため、ログの記録頻度が期間内で偏っている(例:直近ほど記録が
+  /// 多い)と間引き後の点自体が時間的に偏って分布してしまい、複数の理想
+  /// 時刻が疎な区間の同じ点に吸い寄せられて統合される一方、密な区間には
+  /// ラベルが偏って密集する、という別の乱れが生じていた。実データ点を
+  /// 経由せず理想時刻の実時間位置を直接使うことで、この偏りの影響を受け
+  /// なくなる。)
+  Map<int, String> _chartLabels(List<EnvironmentLog> logs, String range) {
     if (logs.isEmpty) return const {};
+    final base = logs.first.timestamp;
+    int xOf(DateTime t) => (t.difference(base).inSeconds / 3600.0).round();
 
     if (range == '24h') {
       final idealTimes = _threeHourBoundaries(
         logs.first.timestamp,
         logs.last.timestamp,
       );
-      return _nearestPointLabels(
-        logs: logs,
-        xValues: xValues,
-        idealTimes: idealTimes,
-        // 実データ点の細かい時刻ではなく、区切りの時刻そのもの
-        // (00:00, 03:00 …)を表示することで、ラベルがきれいな値になる。
-        formatOf: (idealTime, actualTime) =>
-            '${_twoDigits(idealTime.hour)}:${_twoDigits(idealTime.minute)}',
-      );
+      return {
+        for (final t in idealTimes)
+          xOf(t): '${_twoDigits(t.hour)}:${_twoDigits(t.minute)}',
+      };
     }
 
     final idealTimes = _evenlySpacedTimes(
@@ -166,16 +164,7 @@ class _HistoryPageState extends State<HistoryPage> {
       logs.last.timestamp,
       _maxDateLabels,
     );
-    return _nearestPointLabels(
-      logs: logs,
-      xValues: xValues,
-      idealTimes: idealTimes,
-      // 日付ラベルは、区切り時刻そのものではなく実際に一番近いデータ点の
-      // 日付を表示する(区切り時刻自体はグラフ上に存在しない架空の時刻の
-      // ため、実データの日付の方が自然)。
-      formatOf: (idealTime, actualTime) =>
-          '${actualTime.month}/${actualTime.day}',
-    );
+    return {for (final t in idealTimes) xOf(t): '${t.month}/${t.day}'};
   }
 
   /// X軸に表示するラベルの最大個数(7d/30dで使用)。
@@ -214,33 +203,6 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
     ];
-  }
-
-  /// [idealTimes]それぞれについて、[logs]の中から時刻が最も近いデータ点を
-  /// 探し、その点のX座標(小数を丸めた整数値)にラベルを割り当てる。
-  /// 複数の理想時刻が同じ実データ点に最も近くなった場合は、同じキーになる
-  /// ため自然に1つへ統合される(密集の再発防止)。
-  Map<int, String> _nearestPointLabels({
-    required List<EnvironmentLog> logs,
-    required List<double> xValues,
-    required List<DateTime> idealTimes,
-    required String Function(DateTime idealTime, DateTime actualTime) formatOf,
-  }) {
-    final result = <int, String>{};
-    for (final idealTime in idealTimes) {
-      var nearestIndex = 0;
-      var nearestDiff = logs[0].timestamp.difference(idealTime).abs();
-      for (var i = 1; i < logs.length; i++) {
-        final diff = logs[i].timestamp.difference(idealTime).abs();
-        if (diff < nearestDiff) {
-          nearestDiff = diff;
-          nearestIndex = i;
-        }
-      }
-      final key = xValues[nearestIndex].round();
-      result[key] = formatOf(idealTime, logs[nearestIndex].timestamp);
-    }
-    return result;
   }
 
   String _twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -349,7 +311,7 @@ class _HistoryPageState extends State<HistoryPage> {
   List<Widget> _buildSingleChart(List<EnvironmentLog> rawLogs) {
     final logs = _downsampleCached(rawLogs);
     final xValues = _chartXValues(logs);
-    final xLabels = _chartLabels(logs, xValues, _range);
+    final xLabels = _chartLabels(logs, _range);
     final metric = _metricOptions.firstWhere((m) => m.key == _metricKey);
 
     return [

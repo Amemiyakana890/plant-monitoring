@@ -241,7 +241,13 @@ class HistoryLineChart extends StatelessWidget {
                         for (var i = 0; i < values.length; i++)
                           FlSpot(xValues[i], values[i]),
                       ],
-                      isCurved: true,
+                      // X軸が実際の経過時間(データの疎密によって間隔が
+                      // 不均等になりうる)になったため、滑らかな曲線補間
+                      // (isCurved: true)は使わない。間隔が不揃いな点同士を
+                      // スプライン補間すると、実データにない位置まで曲線が
+                      // 膨らんだりへこんだりするオーバーシュートが起きて
+                      // グラフの形が崩れて見えるため、直線で点を結ぶ。
+                      isCurved: false,
                       color: color,
                       barWidth: 3,
                       // 通常時は各データ点にドットを常時表示しない
