@@ -1,10 +1,9 @@
-# v2 セキュリティ・Firebase設計(ドラフト)
+# v2 セキュリティ・Firebase設計
 
 > v2で導入したFirebase Auth(ログイン機能)を土台に、「サーバーAPIが無認証のまま」という
-> 現状の課題を解消するための設計をまとめる。
-> ログイン画面自体は実装済み(`app/lib/screens/auth/`, `app/lib/state/auth_store.dart`)。
-> 本書はその続き、**サーバー側の保護**が主題。
-> 数値・方式ともに**暫定案**。実装しながら調整すること(この文書内のTODOを参照)。
+> 課題を解消するための設計。**サーバー側のトークン検証(3〜4章)は実装済み**
+> (`server/middleware/require_auth.js`・`server/middleware/require_device_auth.js`)。
+> パターンB(複数ユーザー対応)本体はまだ未着手で、その部分は引き続きドラフト(5〜7章のTODO参照)。
 >
 > **方針転換(2026年8月)**: 当初は「本人確認のゲート」としての単一ユーザー運用(パターンA)を
 > 前提にしていたが、v2で複数ユーザー対応(パターンB)を見据える方針に変更した。将来的には
@@ -64,82 +63,106 @@
 | `GET /species` | 必須 | アプリからの操作 |
 | `POST /sensor` | **別方式**(4章) | ESP32はFirebaseユーザーではない |
 
-### 3-2. 検証方式(`firebase-admin`)
+### 3-2. 検証方式(`firebase-admin`)【実装済み】
 
-- サーバー側に `firebase-admin` を追加し、Firebase Consoleから取得したサービスアカウント鍵で初期化する。
-- Expressのミドルウェアとして実装し、上表の「必須」エンドポイント全体に一括適用する(`app.js` の
-  ルーティングより前段)。
+- サーバー側に `firebase-admin` を追加し、`.env` の `GOOGLE_APPLICATION_CREDENTIALS`(Firebase Admin SDK
+  サービスアカウント鍵のパス)で初期化する(`server/firebase_admin.js`)。
+- Expressのミドルウェア `requireAuth`(`server/middleware/require_auth.js`)として実装し、
+  `POST /sensor` を除く全エンドポイントに一括適用している。
 
 ```javascript
-// server/middleware/verifyFirebaseToken.js (イメージ)
+// server/middleware/require_auth.js (実装済み)
 import { getAuth } from 'firebase-admin/auth';
 import { sendError } from '../utils/errors.js';
 
-export async function verifyFirebaseToken(req, res, next) {
-  const authHeader = req.headers.authorization; // "Bearer <idToken>"
-  const idToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+export async function requireAuth(req, res, next) {
+  const authorization = req.headers.authorization ?? '';
+  const [scheme, token] = authorization.split(' ');
 
-  if (!idToken) {
-    return sendError(res, 401, 'UNAUTHORIZED', '認証情報がありません');
+  if (scheme !== 'Bearer' || !token) {
+    return sendError(res, 401, 'UNAUTHENTICATED', 'ログインが必要です');
   }
 
   try {
-    await getAuth().verifyIdToken(idToken);
-    next();
-  } catch (err) {
-    sendError(res, 401, 'UNAUTHORIZED', '認証に失敗しました');
+    req.user = await getAuth().verifyIdToken(token);
+    return next();
+  } catch (error) {
+    console.warn('Firebase IDトークンの検証に失敗しました:', error.message);
+    return sendError(res, 401, 'UNAUTHENTICATED', '認証トークンが無効です');
   }
 }
 ```
 
-- `app.js` 側の適用イメージ:
+- `app.js` 側の適用(実際のコード。`/sensor`だけを`requireDeviceAuth`側に切り出し、それ以外の`/api`配下
+  全体に`requireAuth`を一括適用する形にしている。当初案のようにルーターごとに個別適用してはいない):
 
 ```javascript
-app.use('/api/plants', verifyFirebaseToken, plantsRouter);
-app.use('/api/devices', verifyFirebaseToken, devicesRouter);
-app.use('/api/history', verifyFirebaseToken, historyRouter);
-app.use('/api/notifications', verifyFirebaseToken, notificationsRouter);
-app.use('/api/settings', verifyFirebaseToken, settingsRouter);
-app.use('/api/species', verifyFirebaseToken, speciesRouter);
-app.use('/api/sensor', sensorRouter); // ← 別方式(4章)。ここではverifyFirebaseTokenを挟まない
+app.use('/api/sensor', requireDeviceAuth);
+app.use('/api', (req, res, next) => {
+  if (req.path === '/sensor' || req.path.startsWith('/sensor/')) {
+    return next();
+  }
+  return requireAuth(req, res, next);
+});
 ```
 
 - エラーレスポンスは既存の形式(`system-design.md` 5-8章、`server/utils/errors.js` の `sendError`)
-  にそのまま合わせ、401 `UNAUTHORIZED` を新設する。
+  に合わせつつ、当初案の`UNAUTHORIZED`ではなく **`UNAUTHENTICATED`** というコードで実装した
+  (「権限がない」ではなく「ログインしていない/トークンが無効」を表す方が実態に合うため)。
 
-### 3-3. アプリ側の対応(Flutter)
+### 3-3. アプリ側の対応(Flutter)【実装済み】
 
-- `HttpPlantRepository` が各リクエスト時に `Authorization: Bearer <idToken>` ヘッダーを付与するよう修正が必要。
-- IDトークンは `FirebaseAuth.instance.currentUser?.getIdToken()` で取得できる(有効期限は1時間、
+- `HttpPlantRepository` が各リクエスト時に `Authorization: Bearer <idToken>` ヘッダーを付与する(実装済み)。
+- IDトークンは `FirebaseAuth.instance.currentUser?.getIdToken()` で取得している(有効期限は1時間、
   SDKが自動でリフレッシュするため、リクエストの都度取得し直せば期限切れは基本的に気にしなくてよい)。
-- `main.dart` の現状のコメント(「PlantStoreの初期化はログイン状態に関わらず開始している」)は、
-  この変更後は成立しなくなる。**トークン検証を追加するタイミングで、`PlantStore.loadInitial()` /
-  `startPolling()` の開始をログイン後に遅らせる必要がある**(未ログイン中に叩くと401が返り続けるだけになるため)。
+- `main.dart` は `AuthStore` のログイン状態を監視し、ログイン成功後(`isSignedIn`かつ未取得の場合)に
+  初めて `PlantStore.loadInitial()` / `startPolling()` を呼ぶよう変更済み(未ログイン中に叩いて401が
+  返り続けることはない)。
 
-## 4. ESP32(`POST /sensor`)の扱い
+## 4. ESP32(`POST /sensor`)の扱い【実装済み・案Aを採用】
 
 ESP32はFirebase Authのユーザーとしてログインする主体ではないため、3章の方式をそのまま適用できない。
-以下のいずれかで別途保護する。
+以下の案A(固定の共有シークレット)を採用し、実装済み。
 
-### 案A: 固定の共有シークレット(簡易・実装コスト最小)
+### 採用: 案A: 固定の共有シークレット(簡易・実装コスト最小)
 
-- `.env` に `DEVICE_API_KEY` のような固定値を1つ持たせ、ESP32側は `POST /sensor` のヘッダーに
-  同じ値を付与して送信する(例: `X-Device-Key: <値>`)。
-- サーバー側は単純な文字列比較で検証する。
+- `.env` の `DEVICE_API_KEY` を固定値として持たせ、ESP32側は `POST /sensor` のヘッダーに
+  同じ値を `X-Device-Api-Key` として付与して送信する(`esp32/plant_sensor_integrated/secrets.h`の
+  `DEVICE_API_KEY`と一致させる)。
+- サーバー側は `server/middleware/require_device_auth.js`(`requireDeviceAuth`)で
+  `timingSafeEqual` によるタイミング攻撃耐性のある文字列比較で検証する。
 - デメリット:鍵が漏れた場合、全デバイス共通の鍵のため無効化が全デバイスに影響する。ただしv1は
-  1デバイスのみ・v2でも数台規模の想定のため、実害は小さい。
+  1デバイスのみ・v2でも数台規模の想定のため、実害は小さいと判断し、この方式で確定した。
 
-### 案B: デバイスごとの個別トークン(拡張性重視)
+```javascript
+// server/middleware/require_device_auth.js (実装済み)
+import { timingSafeEqual } from 'node:crypto';
+import { sendError } from '../utils/errors.js';
+
+export function requireDeviceAuth(req, res, next) {
+  const configuredKey = process.env.DEVICE_API_KEY;
+  const requestKey = req.headers['x-device-api-key'];
+
+  if (!configuredKey || typeof requestKey !== 'string') {
+    return sendError(res, 401, 'UNAUTHENTICATED', 'デバイス認証が必要です');
+  }
+
+  const expected = Buffer.from(configuredKey);
+  const actual = Buffer.from(requestKey);
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    return sendError(res, 401, 'UNAUTHENTICATED', 'デバイス認証に失敗しました');
+  }
+
+  return next();
+}
+```
+
+### 見送り: 案B: デバイスごとの個別トークン(拡張性重視)
 
 - `devices` テーブルに `api_token` カラムを追加し、`POST /devices/pair` 時にサーバー側でランダムな
-  トークンを発行してESP32に返す(または初回セットアップ時にアプリ経由で払い出す)。
-- ESP32は以降このトークンをヘッダーに付与して送信する。
-- デバイスを個別に無効化できる、複数デバイス対応(v2で検討中)とも相性が良い。
-- デメリット:データモデル変更・ペアリングフローの変更が必要で、実装コストは案Aより大きい。
-
-**TODO: 案A・案Bどちらを採用するか未確定。** v2で複数デバイス対応(5種の植物、将来的に台数が増える
-想定)を進めるなら案Bの方が長期的に扱いやすいが、まず案Aで最小実装し、複数デバイス対応が具体化した
-タイミングで案Bへ切り替える、という段階的な進め方も選択肢としてありうる。
+  トークンを発行してESP32に返す案。デバイスを個別に無効化できる、複数デバイス対応とも相性が良い。
+- データモデル変更・ペアリングフローの変更が必要で実装コストが大きいため、v1〜v2初期では見送った。
+  複数デバイス対応が具体化するタイミングで改めて検討する(7章参照)。
 
 ## 5. 新規登録を閉じる方式(撤回・現在は対応不要)
 
@@ -175,8 +198,7 @@ device/plantへアクセスさせないアクセス制御(3章のトークン検
 5. ユーザーとデバイス/植物の紐付け設計(パターンB本体、5章TODO・7章参照) ⬜ 未着手
 6. BLEペアリングフロー ⬜ 未着手
 
-Push通知(FCM)・複数植物対応は、上記のサーバー保護が済んだ後に着手する想定
-(Push通知はサーバー→アプリへの片方向配信のため、本ドキュメントの認証設計とは独立して進められる)。
+Push通知(FCM)は本ドキュメントのサーバー保護を土台に実装済み(詳細は[push-notification-design.md](push-notification-design.md)を参照)。複数植物対応は、パターンB本体の設計が固まった後に着手する想定。
 
 ## 7. 残課題・今後の検討事項
 

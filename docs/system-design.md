@@ -7,14 +7,14 @@
   │
   ▼
 ESP32(センサーデバイス)
-  │ HTTP(JSON)
+  │ HTTP(JSON, X-Device-Api-Key)
   ▼
-Node.js(APIサーバー)
-  │
+Node.js(APIサーバー) ──requireAuth/requireDeviceAuth── Firebase Authentication(IDトークン検証)
+  │                                                └─ Firebase Cloud Messaging(Push通知送信)
   ├── SQLite
   │
   ▼
-Flutter(アプリ)
+Flutter(アプリ) ──ログイン── Firebase Authentication
 ```
 
 ## 2. ディレクトリ構成
@@ -23,25 +23,36 @@ Flutter(アプリ)
 project
 │
 ├── app
+│   ├── config
+│   ├── data
+│   ├── models
+│   ├── repositories
+│   ├── services
+│   ├── state
 │   ├── screens
+│   │   ├── auth
+│   │   ├── onboarding
 │   │   ├── home
 │   │   ├── plant_info
 │   │   ├── history
 │   │   ├── notification
 │   │   └── settings
+│   ├── theme
+│   ├── utils
 │   ├── widgets
-│   ├── models
-│   ├── services
 │   └── main.dart
 │
 ├── server
 │   ├── routes
 │   ├── database
 │   ├── controllers
+│   ├── middleware      認証(Firebase IDトークン検証・デバイスキー検証)
+│   ├── utils
 │   └── app.js
 │
 ├── esp32
-│   └── main.ino
+│   └── plant_sensor_integrated/
+│       └── plant_sensor_integrated.ino
 │
 └── docs
 ```
@@ -68,7 +79,7 @@ project
 
 ### 3-2. 植物情報画面
 
-- 植物名・植物種を確認・編集する
+- 植物名(自由入力)・植物種(カタログから選択。現状はモンステラのみ)を確認・編集する
 - 紐づくデバイス情報(デバイス名など)を表示
 
 ### 3-3. 履歴画面
@@ -83,52 +94,68 @@ project
 
 ### 3-5. 設定/デバイス登録画面
 
-- デバイス接続(Bluetooth/Wi-Fiでのペアリング、初回のみ)
-- 通知設定(通知頻度・通知時間帯・通知音)
+- デバイス接続(デバイス名・MACアドレスの手入力によるペアリング、APIまで接続済み。実機BLE/Wi-Fiスキャンは未実装、5-3章参照)
+- 通知設定(サイレントタイム・カテゴリ別ON/OFF)
 - デバイス設定(デバイス名・バッテリー残量・ファームウェア確認)
+- ログイン/ログアウト(Firebase Authentication)
 - ヘルプ・サポート
 
 ## 4. ユーザーフロー
 
-> 本バージョンは認証機能を実装しない単一ユーザー構成のため、アカウント作成/ログインのステップは設けない([要件定義書 9章](requirements.md#9-制約事項)を参照)。
+> v1企画時点では認証機能を実装しない単一ユーザー構成を前提としていたが、**v2でFirebase
+> Authentication(メール/パスワード)によるログイン機能を追加した**。ログイン画面自体は実装済みで、
+> `AuthGate`が起動時にログイン状態を見て`LoginPage`/`AppRoot`を振り分ける。ただし現時点では
+> 「本人確認のゲート」としての導入であり、ユーザーごとにデータを分離する仕組みではない
+> (`plants`・`devices`とも引き続き1レコードのみを運用)。認証の詳細・サーバー側の保護方式は
+> [v2-firebase-security-design.md](v2-firebase-security-design.md)を参照。
 
 ```
-①アプリ起動 → ②デバイス接続 → ③植物の登録 → ④ホーム画面(通常時)
-                                                        │
-                                    ⑤通知が届く ◀───────┘(状態悪化時)
-                                        │
-                                    ⑥ホームで詳細を確認
-                                        │
-                                    ⑦状態が更新される
+①アプリ起動 → ②ログイン/新規登録 → ③デバイス接続 → ④植物の登録 → ⑤ホーム画面(通常時)
+                                                                        │
+                                            ⑥通知が届く ◀───────────────┘(状態悪化時)
+                                                │
+                                            ⑦ホームで詳細を確認
+                                                │
+                                            ⑧状態が更新される
 ```
 
-- 初回起動時はオンボーディングを表示し、そのままデバイス接続 → 植物登録へ進む
+- 初回起動時はログイン/新規登録を経て、そのままデバイス接続 → 植物登録へ進む
+- 植物登録(F-08)はアプリ内の登録画面から`POST /plants`まで接続済み(`curl`等での手動登録は不要)
 - 通常時:通知が来ていない = 安心という状態を基本とし、毎日アプリを開かなくてもよい設計とする
 - その他の操作(植物情報・履歴/記録・通知設定・デバイス設定・ヘルプ)はホームからいつでもアクセス可能とする
 
 ## 5. API設計
 
-認証機能を実装しないため、全APIは認証不要(単一ユーザー・単一端末前提)とする。ベースURLは `http://<server-ip>:port/api` とする。
+**v2よりサーバー側にFirebase IDトークンの検証を導入した**。`POST /sensor`(ESP32からの送信)を
+除く全APIはログイン必須で、リクエストヘッダーに`Authorization: Bearer <Firebase IDトークン>`が
+必要(未指定・無効な場合は401 `UNAUTHENTICATED`)。`POST /sensor`のみESP32向けの別方式
+(`X-Device-Api-Key`ヘッダーによる共有シークレット認証)で保護する。詳細は
+[v2-firebase-security-design.md](v2-firebase-security-design.md)を参照。ベースURLは
+`http://<server-ip>:port/api` とする。
 
 ### 5-1. エンドポイント一覧
 
-| Method | URL | 内容 | 対応画面 |
-|---|---|---|---|
-| GET | /plants | 植物一覧取得 | ホーム |
-| POST | /plants | 植物登録 | 設定/植物登録 |
-| GET | /plants/:id | 植物詳細取得 | 植物詳細 |
-| PATCH | /plants/:id | 植物情報編集 | 植物詳細/設定 |
-| DELETE | /plants/:id | 植物削除 | 設定 |
-| GET | /devices | 検出済み/登録済みデバイス一覧取得 | 設定/植物登録 |
-| POST | /devices/pair | デバイスのペアリング登録 | 設定/植物登録 |
-| GET | /devices/:id | デバイス情報取得(バッテリー残量等) | 設定 |
-| DELETE | /devices/:id | デバイスのペアリング解除 | 設定 |
-| POST | /sensor | ESP32からのセンサーデータ送信 | (デバイス→サーバー) |
-| GET | /history/:plantId | 履歴取得(クエリで期間指定) | 履歴 |
-| GET | /notifications | 通知一覧取得 | 通知/アラート |
-| PATCH | /notifications/:id | 通知を既読にする | 通知/アラート |
-| GET | /settings/notification | 通知設定取得 | 設定 |
-| PUT | /settings/notification | 通知設定の更新 | 設定 |
+| Method | URL | 内容 | 対応画面 | 認証 |
+|---|---|---|---|---|
+| GET | /plants | 植物一覧取得 | ホーム | ログイン必須 |
+| POST | /plants | 植物登録 | 設定/植物登録 | ログイン必須 |
+| GET | /plants/:id | 植物詳細取得 | 植物詳細 | ログイン必須 |
+| PATCH | /plants/:id | 植物情報編集(名前・植物種・デバイス紐付け) | 植物詳細/設定 | ログイン必須 |
+| DELETE | /plants/:id | 植物削除 | 設定 | ログイン必須 |
+| POST | /plants/:id/waterings | 水やり記録 | ホーム | ログイン必須 |
+| GET | /devices | 検出済み/登録済みデバイス一覧取得 | 設定/植物登録 | ログイン必須 |
+| POST | /devices/pair | デバイスのペアリング登録(再接続時は再アクティブ化) | 設定/植物登録 | ログイン必須 |
+| GET | /devices/:id | デバイス情報取得(バッテリー残量等) | 設定 | ログイン必須 |
+| DELETE | /devices/:id | デバイスのペアリング解除(行は削除せず紐付け解除のみ) | 設定 | ログイン必須 |
+| PUT | /devices/tokens | Push通知(FCM)トークンの登録・更新 | (アプリ内部・ログイン/トークン更新時) | ログイン必須 |
+| DELETE | /devices/tokens | Push通知(FCM)トークンの削除 | (未使用。4-2章参照) | ログイン必須 |
+| POST | /sensor | ESP32からのセンサーデータ送信 | (デバイス→サーバー) | デバイス認証(`X-Device-Api-Key`) |
+| GET | /history/:plantId | 履歴取得(クエリで期間指定) | 履歴 | ログイン必須 |
+| GET | /notifications | 通知一覧取得 | 通知/アラート | ログイン必須 |
+| PATCH | /notifications/:id | 通知を既読にする | 通知/アラート | ログイン必須 |
+| GET | /settings/notification | 通知設定取得(サイレントタイム・カテゴリ別ON/OFF) | 設定 | ログイン必須 |
+| PUT | /settings/notification | 通知設定の更新 | 設定 | ログイン必須 |
+| GET | /species | 植物種カタログ取得(現状はモンステラのみ) | 植物情報/植物登録 | ログイン必須 |
 
 ### 5-2. 植物 API
 
@@ -149,6 +176,8 @@ project
   }
 ]
 ```
+
+> 上記は5-7章時点(土壌水分のみ)の簡略版。実際のレスポンスには、温度・湿度・照度の状態判定([status-notification-design.md](status-notification-design.md))に伴う`temp_status`・`humidity_daily_status`・`humidity_daily_avg`・`illuminance_daily_status`・`illuminance_daily_avg`、水やり記録の`last_watered_at`、植物種選択の`species_key`・`species_info`・`care_profile`(今の季節に応じた管理条件)も含まれる。
 
 **POST /plants リクエスト例**
 
@@ -174,6 +203,28 @@ project
 ```json
 { "device_id": 1 }
 ```
+
+植物種の選択・切り替え(F-08・植物切り替え機能)には`species_key`を指定する(POST /plants・PATCH /plants/:idの両方で任意項目として受け付ける。存在しないキーの場合は400 VALIDATION_ERROR)。指定すると表示用の`species`テキストはカタログの値(例:「サトイモ科モンステラ属」)で自動的に上書きされる。植物名(`name`、ニックネーム)は`species_key`と完全に独立しており、別途自由入力できる。未指定(既存データ含む)の場合は、閾値・表示情報ともにデフォルト種(モンステラ)へフォールバックする。カタログの詳細は5-3-1章を参照。
+
+```json
+{ "species_key": "monstera" }
+```
+
+**POST /plants/:id/waterings**(水やり記録)
+
+ホーム画面の「水やりした」ボタンから呼ぶ。リクエストボディは不要。記録後、`last_watered_at`を含む最新の植物状態(201 Created)を返す。土壌水分が要ケアゾーンでも、直近の水やりから2時間以内は「注意」に緩和される(詳細は[status-notification-design.md 3-3章](status-notification-design.md)を参照)。
+
+### 5-2-1. 植物種カタログ API
+
+**GET /species レスポンス例**
+
+```json
+[
+  { "key": "monstera", "name": "モンステラ", "scientific_name": "サトイモ科モンステラ属" }
+]
+```
+
+v1はモンステラ1種のみを固定カタログ(`server/utils/speciesCatalog.js`)として持たせている(DBテーブル化はしていない)。将来、利用者自身が植物種を追加できるようにする場合はこの定数をDBテーブル+管理APIに置き換える想定([status-notification-design.md 9章](status-notification-design.md)を参照)。
 
 ### 5-3. デバイス API
 
@@ -268,17 +319,15 @@ ESP32はデバイスIDを含めてデータを送信する(植物IDではなく�
 
 ### 5-7. 状態(status)判定ロジック
 
-植物の状態はサーバー側で、直近のセンサー値と閾値を比較して算出し`plants.status`に保存する(アプリ側では計算しない)。
+`plants.status`(土壌水分ベース、ホーム画面の主アイコンに対応)は、企画当初の固定閾値から、季節別閾値・継続時間・水やり履歴による緩和を考慮したロジックへ拡張済み(`server/utils/plantStatus.js`の`resolveSoilStatus()`)。
 
-| status | 条件(例) |
+| status | 条件(概要) |
 |---|---|
-| healthy(元気です) | soil >= 40 |
-| thirsty(少し乾いています) | 20 <= soil < 40 |
-| dry(乾燥しています) | soil < 20 |
+| healthy(元気です) | 季節別のhealthy閾値以上 |
+| thirsty(少し乾いています) | caution_zoneに6時間以上継続、または要ケアゾーンでも直近の水やりから2時間以内 |
+| dry(乾燥しています) | 要ケアゾーン(季節別のneeds_care閾値未満)かつ、水やり緩和の対象外 |
 
-閾値は植物種ごとに変える可能性があるため、将来的には`plants`または植物種マスタに閾値カラムを持たせる拡張を想定する(現バージョンは固定閾値)。
-
-> 上記は現行実装(土壌水分のみ)の概要。湿度・照度を含めた状態判定・通知の詳細設計は[status-notification-design.md](status-notification-design.md)を参照。
+温度・湿度・照度についても同様に閾値・継続時間ベースの判定ロジックが実装されており、`plants`テーブルの`temp_status`・`humidity_daily_status`・`illuminance_daily_status`に保存される(4項目の中で最も深刻なものをホーム画面の通知メッセージに反映する「worst-of方式」)。閾値は植物種ごとの閾値プロファイル(5-2-1章の植物種カタログ)から取得し、v1はモンステラの実測・公開情報に基づく値のみを使用する。判定ロジック・通知設計の詳細は[status-notification-design.md](status-notification-design.md)を参照。
 
 ### 5-8. エラーレスポンス形式
 
@@ -296,19 +345,28 @@ ESP32はデバイスIDを含めてデータを送信する(植物IDではなく�
 | HTTPステータス | 内容 |
 |---|---|
 | 400 | リクエスト不正(バリデーションエラー) |
+| 401 | 認証エラー(`UNAUTHENTICATED`。Firebase IDトークン/デバイスキーが未指定・無効) |
 | 404 | 対象リソースが存在しない(例: `PLANT_NOT_FOUND` / `DEVICE_NOT_FOUND`) |
 | 500 | サーバー内部エラー |
 
+### 5-9. 認証
+
+v2よりサーバー側の保護を実装済み(v1企画時点は「認証機能を実装しない」前提だったが変更)。
+
+- アプリからのリクエストは`Authorization: Bearer <Firebase IDトークン>`ヘッダーが必須(`server/middleware/require_auth.js`)。
+- ESP32からの`POST /sensor`のみ、`.env`の`DEVICE_API_KEY`と一致する`X-Device-Api-Key`ヘッダーで認証する(`server/middleware/require_device_auth.js`)。
+- 現状はユーザーごとのデータ分離(誰がどの植物/デバイスにアクセスできるか)までは行っておらず、「ログイン済みかどうか」のみを見る(ログイン済みであれば誰でも同じ1件のplant/deviceにアクセスできる)。詳細・今後の方針は[v2-firebase-security-design.md](v2-firebase-security-design.md)を参照。
+
 ## 6. データベース設計(ER図)
 
-認証機能を実装しないため`users`テーブルは持たず、`devices`・`plants`を起点としたシンプルな構成とする。
-なお本バージョン(v1)では`devices`・`plants`ともに1レコードのみを運用する(単独構成のため)。
+v2でFirebase Authenticationを導入したが、ユーザーごとにデータを分離する`users`テーブルは持たせていない(5-9章の通り「本人確認のゲート」としての利用にとどまる)。そのため引き続き`devices`・`plants`を起点としたシンプルな構成であり、本バージョン(v1)では`devices`・`plants`ともに1レコードのみを運用する(単独構成のため)。Push通知用の`device_tokens`のみ、Firebaseのuid(`owner_uid`)に紐づけて保存する(将来の複数ユーザー対応を見据えた設計。詳細は[push-notification-design.md](push-notification-design.md)を参照)。
 
 ```mermaid
 erDiagram
     DEVICES ||--o| PLANTS : "1台のデバイスが1つの植物に対応"
     PLANTS ||--o{ SENSOR_LOGS : "記録する"
     PLANTS ||--o{ NOTIFICATIONS : "発生させる"
+    PLANTS ||--o{ WATERING_LOGS : "記録する"
 
     DEVICES {
         integer id PK
@@ -325,8 +383,20 @@ erDiagram
         integer device_id FK
         text name
         text species
+        text species_key
         text image
         text status
+        text temp_status
+        text temp_out_of_range_since
+        text soil_caution_since
+        text humidity_daily_status
+        real humidity_daily_avg
+        text humidity_evaluated_at
+        text illuminance_daily_status
+        real illuminance_daily_avg
+        text illuminance_evaluated_at
+        integer pending_notification
+        text silent_time_unlock_checked_at
         text created_at
     }
 
@@ -340,10 +410,17 @@ erDiagram
         text created_at
     }
 
+    WATERING_LOGS {
+        integer id PK
+        integer plant_id FK
+        text watered_at
+    }
+
     NOTIFICATIONS {
         integer id PK
         integer plant_id FK
         text message
+        text category
         integer is_read
         text created_at
     }
@@ -354,10 +431,23 @@ erDiagram
         text start_time
         text end_time
         integer sound_enabled
+        integer soil_alert_enabled
+        integer temperature_alert_enabled
+        integer humidity_alert_enabled
+        integer illuminance_alert_enabled
+    }
+
+    DEVICE_TOKENS {
+        integer id PK
+        text owner_uid
+        text fcm_token
+        text platform
+        text created_at
+        text updated_at
     }
 ```
 
-> `NOTIFICATION_SETTINGS`はアプリ全体で1レコードのみ保持する設定テーブルのため、他テーブルとのリレーションは持たない(単一ユーザー構成のため)。
+> `NOTIFICATION_SETTINGS`はアプリ全体で1レコードのみ保持する設定テーブルのため、他テーブルとのリレーションは持たない。`DEVICE_TOKENS`も他テーブルとのFKは持たず、`owner_uid`(Firebaseのuid)で緩やかに紐づく。
 
 ### devices
 
@@ -365,11 +455,11 @@ erDiagram
 |---|---|---|
 | id | INTEGER (PK) | |
 | device_name | TEXT | 例:「Plant Monitor 01」 |
-| mac_address | TEXT | デバイス識別用 |
+| mac_address | TEXT | デバイス識別用(UNIQUE) |
 | firmware_version | TEXT | |
 | battery_level | INTEGER | 0〜100 |
 | status | TEXT | connected / disconnected |
-| paired_at | TEXT | ペアリング日時 |
+| paired_at | TEXT | ペアリング日時(再接続のたびに更新) |
 
 ### plants
 
@@ -377,10 +467,18 @@ erDiagram
 |---|---|---|
 | id | INTEGER (PK) | |
 | device_id | INTEGER (FK → devices.id) | 紐付くデバイス(任意:未接続でも登録可) |
-| name | TEXT | |
-| species | TEXT | |
+| name | TEXT | ニックネーム(自由入力) |
+| species | TEXT | 表示用の植物種テキスト(species_key指定時はカタログの値で自動設定) |
+| species_key | TEXT | 植物種カタログ(5-2-1章)のキー。未設定時はモンステラにフォールバック |
 | image | TEXT | |
-| status | TEXT | healthy / thirsty / dry(5-7のロジックで更新) |
+| status | TEXT | healthy / thirsty / dry(土壌水分、5-7のロジックで更新) |
+| temp_status | TEXT | healthy / caution / needs_care(温度、リアルタイム評価) |
+| temp_out_of_range_since | TEXT | 温度が適正範囲外に入り続けている開始時刻 |
+| soil_caution_since | TEXT | 土壌水分がcaution_zoneに入り続けている開始時刻 |
+| humidity_daily_status / humidity_daily_avg / humidity_evaluated_at | TEXT / REAL / TEXT | 湿度の日次評価結果・24時間平均・評価時刻(1日1回15:00) |
+| illuminance_daily_status / illuminance_daily_avg / illuminance_evaluated_at | TEXT / REAL / TEXT | 照度の日次評価結果・昼間平均・評価時刻(1日1回15:00) |
+| pending_notification | INTEGER | サイレントタイム中に悪化があったかどうかのフラグ(0/1) |
+| silent_time_unlock_checked_at | TEXT | サイレントタイム解禁チェックを最後に行った時刻 |
 | created_at | TEXT | |
 
 ### sensor_logs
@@ -388,12 +486,20 @@ erDiagram
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | INTEGER (PK) | |
-| plant_id | INTEGER (FK → plants.id) | |
+| plant_id | INTEGER (FK → plants.id, ON DELETE CASCADE) | |
 | temperature | REAL | |
 | humidity | REAL | |
 | soil | REAL | |
 | illuminance | REAL | |
-| created_at | TEXT | |
+| created_at | TEXT | UTC(末尾Z付き)で保存 |
+
+### watering_logs
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | |
+| plant_id | INTEGER (FK → plants.id, ON DELETE CASCADE) | |
+| watered_at | TEXT | 水やりを記録した時刻(POST /plants/:id/waterings) |
 
 ### notifications
 
@@ -402,6 +508,7 @@ erDiagram
 | id | INTEGER (PK) | |
 | plant_id | INTEGER (FK → plants.id) | |
 | message | TEXT | |
+| category | TEXT | soil / temperature / humidity / illuminance(移行前の行はNULL) |
 | is_read | INTEGER | 0 / 1 |
 | created_at | TEXT | |
 
@@ -409,11 +516,22 @@ erDiagram
 
 | 列 | 型 | 説明 |
 |---|---|---|
-| id | INTEGER (PK) | 常に1レコードのみ運用 |
+| id | INTEGER (PK) | 常に1レコード(id=1)のみ運用 |
 | frequency | TEXT | 例:「必要な時だけ」 |
-| start_time | TEXT | 通知許可時間帯(開始) |
-| end_time | TEXT | 通知許可時間帯(終了) |
+| start_time | TEXT | サイレントタイム開始(デフォルト20:00) |
+| end_time | TEXT | サイレントタイム終了(デフォルト06:00) |
 | sound_enabled | INTEGER | 0 / 1 |
+| soil_alert_enabled / temperature_alert_enabled / humidity_alert_enabled / illuminance_alert_enabled | INTEGER | カテゴリ別の通知ON/OFF(0/1、デフォルト1)。OFFでも状態判定・バッジ表示自体は止めない |
+
+### device_tokens
+
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | INTEGER (PK) | |
+| owner_uid | TEXT | Firebaseのuid |
+| fcm_token | TEXT | FCMトークン(UNIQUE) |
+| platform | TEXT | 現状はandroidのみ |
+| created_at / updated_at | TEXT | |
 
 ## 7. デザインシステム
 
@@ -496,6 +614,7 @@ ATOM Matrix ──┬─▶ ATOM PortABC拡張ベース ──▶ PortA:ENV Ⅲ(
 ESP32
   ↓
 POST /sensor
+ヘッダー: X-Device-Api-Key: <DEVICE_API_KEY>(5-9章参照)
 送信
 {
   "device_id": 1,

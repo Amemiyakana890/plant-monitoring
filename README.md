@@ -52,11 +52,15 @@
 | アプリ | Flutter |
 | サーバー | Node.js(Express) |
 | データベース | SQLite |
+| 認証 | Firebase Authentication(メール/パスワード) |
+| Push通知 | Firebase Cloud Messaging(FCM、Android先行対応) |
 | デバイス | ATOM Matrix, Arduino |
-| センサー | M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、M5Stack用 土壌水分センサユニット(Unit Earth、U019)※、M5Stack用光センサユニット [U021] |
+| センサー | M5Stack用温湿度気圧センサユニット Ver.3（ENV Ⅲ）、M5Stack用 土壌水分センサユニット(Unit Earth、U019)※、照度センサー BH1750※2 |
 | 通信 | Wi-Fi 2.4GHz / HTTP(JSON) |
 
 ※ 土壌水分センサーは当初M5Stack用土壌水分センサユニット(U019、抵抗式)を使用していましたが、接続不良と判断し一時DFRobot Gravity 防水静電容量式土壌水分センサー V2.0(SEN0308、静電容量式)へ変更しました。その後の再検証で、異常値の主因は培養土との相性(電極接触ムラ)であり砂状の媒体では安定動作することが判明したため、M5シリーズでの機材統一を優先しU019+砂運用へ最終的に変更しました。電極の防錆・防水非対応による長期耐久性のリスクは許容した上での採用です。詳細は[デバイス検証ログ](docs/device-test-log.md)を参照してください。
+
+※2 光センサーは当初M5Stack用光センサユニット(U021)を候補としていましたが、拡張ベース経由でのI2C/ADCピン競合・ピン不足の懸念から見送り、BH1750(ENV IIIとは別のI2Cバス経由)へ変更しました。詳細は[設計書 8章](docs/system-design.md#8-デバイス設計)を参照してください。
 
 ---
 
@@ -137,11 +141,11 @@ C -->|API| E
 - ✅ 水やり記録機能(ホーム画面の「水やりした」ボタン、履歴一覧・グラフへの反映は保留中)
 - ✅ 植物情報ページにて植物の切り替えの土台構築
 - ✅ 植物の新規登録画面(F-08)。`AppRoot`が植物未登録を検知すると自動でこの画面へ振り分け、送信すると`POST /plants`まで接続済み(`app/lib/screens/onboarding/plant_registration_page.dart`)。セットアップ時に`curl`コマンドで手動登録する必要はない
-- ⬜ Push通知{(現状はアプリ内の通知一覧のみ)Firebaseを導入してから着手予定でFirebase Cloud Messaging(FCM)を使おうと思います}
-- ⬜ Bluetooth Low Energy(BLE)はFirebaseを導入してから着手予定
+- ✅ Push通知(Firebase Cloud Messaging(FCM)、Android先行対応。ログイン後にトークン登録、フォアグラウンドはバナーを出さず通知一覧のみ即時更新、バックグラウンド/終了状態はOS標準のシステム通知。詳細は[push-notification-design.md](docs/push-notification-design.md)を参照)
+- ⬜ Bluetooth Low Energy(BLE)は未着手(現状はデバイス名・MACアドレスの手入力でペアリング)
 - ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証。本人確認のゲートのみで、ユーザーごとのデータ分離は行わないパターンAでの実装)
 - ✅ v2:セキュリティ強化(サーバーAPIにFirebaseのIDトークン検証ミドルウェアを追加(`server/middleware/require_auth.js`)。`POST /sensor`のみESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
-- ⬜ v2でのFirebase移行(ログイン機能から着手済み。Push通知・その他の移行は本格的な見直しが済んでから)
+- ✅ v2でのFirebase移行(ログイン機能・サーバーAPIの保護・Push通知(FCM)まで完了。Node.jsサーバーは置き換えず、`firebase-admin`経由で拡張する方針で確定・実装した)
 - ⬜ v2で複数ユーザー対応にする(単一ユーザー前提から方針転換。ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。新規登録ボタン(`LoginPage`)はこの方針に伴い意図的に開放したまま。詳細・残課題は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
 - ⬜ v2で複数植物・複数デバイス対応にする
 
@@ -165,6 +169,9 @@ project
 - [企画書](docs/concept.md)
 - [要件定義](docs/requirements.md)
 - [設計書](docs/system-design.md)
+- [状態判定・通知設計](docs/status-notification-design.md)
+- [Push通知(FCM)設計](docs/push-notification-design.md)
+- [v2 セキュリティ・Firebase設計](docs/v2-firebase-security-design.md)
 - [デバイス検証ログ](docs/device-test-log.md)
 
 ---
@@ -181,7 +188,7 @@ project
 
 Flutter SDKは`app/pubspec.yaml`で**3.41.9**に固定しています。対応するDart SDKは**3.11.5**です。
 
-アプリはNode.jsサーバー(`server/`)と通信するため、先にサーバーを起動しておく必要があります。詳しい手順は[`app/README.md`](app/README.md)を参照してください。
+アプリはNode.jsサーバー(`server/`)と通信するため、先にサーバーを起動しておく必要があります。詳しい手順は[`app/app-README.md`](app/app-README.md)を参照してください。
 
 ```bash
 cd app
@@ -196,7 +203,7 @@ flutter analyze
 flutter test
 ```
 
-Androidで実行する場合はAndroid StudioとAndroid SDK、iOSで実行する場合はmacOSとXcodeが必要です。詳細は[`app/README.md`](app/README.md)を参照してください。
+Androidで実行する場合はAndroid StudioとAndroid SDK、iOSで実行する場合はmacOSとXcodeが必要です。詳細は[`app/app-README.md`](app/app-README.md)を参照してください。
 
 ---
 

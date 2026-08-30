@@ -101,8 +101,8 @@ Flutter(アプリ)
 ## 11. 今後の展望
 
 - 通知機能の強化(通知タイミングのカスタマイズ等)
-- セキュリティ関連の強化
-- 複数植物・複数デバイスへの対応(現状は1台1株の単独構成)
+- セキュリティ関連の強化(v2でFirebase Authenticationによるログイン・サーバーAPIの保護までは実装済み。詳細は[v2-firebase-security-design.md](v2-firebase-security-design.md)を参照)
+- 複数植物・複数デバイスへの対応(現状は1台1株の単独構成。データモデル上の土台(植物種選択・切り替え)は着手済み)
 - 履歴グラフ機能の改善(期間指定、比較表示など)
 - クラウド対応によるリモートアクセス
-- Node.js→firebaseへの変更
+- Firebaseの活用範囲拡大(Authentication・Cloud Messagingの導入は完了。サーバー自体をNode.jsからCloud Functions等へ置き換える案は検討したが、既存の判定ロジックとの相性を踏まえNode.jsサーバーを`firebase-admin`で拡張する方針に決定した。詳細は[push-notification-design.md 9-1章](push-notification-design.md)を参照)
