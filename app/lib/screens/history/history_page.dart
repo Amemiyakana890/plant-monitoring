@@ -126,10 +126,8 @@ class _HistoryPageState extends State<HistoryPage> {
   /// X軸のラベルを、選択中の[range]に応じて「実際の時刻をもとにした
   /// 理想的な等間隔の目盛り時刻」から直接組み立てる。
   ///
-  /// - 24h: 3時間ごとの壁時計上の区切り(00:00 / 03:00 / 06:00 …)を対象と
-  ///   する。
-  /// - 7d / 30d: 表示期間全体を最大[_maxDateLabels]個に均等分割した時刻を
-  ///   対象とする。
+  /// - 24h / 7d / 30d 共通で、表示期間全体を最大[_maxLabels]個に均等分割
+  ///   した時刻を対象とする。
   ///
   /// X軸はすでに実際の経過時間([_chartXValues])を使っているため、理想時刻
   /// をそのまま同じ計算式でX座標に変換して使えば、データの疎密に関係なく
@@ -142,53 +140,42 @@ class _HistoryPageState extends State<HistoryPage> {
   /// 時刻が疎な区間の同じ点に吸い寄せられて統合される一方、密な区間には
   /// ラベルが偏って密集する、という別の乱れが生じていた。実データ点を
   /// 経由せず理想時刻の実時間位置を直接使うことで、この偏りの影響を受け
-  /// なくなる。)
+  /// なくなった。)
+  ///
+  /// (さらにその後、24hだけ「壁時計上の3時間区切り(00:00, 03:00 …)を
+  /// 実データの範囲内で全部列挙する」という、個数の上限が無いロジックに
+  /// なっていた。デバイスが1日以上オフラインの後に再稼働した場合など、
+  /// 実際のデータの最初〜最後の時刻の幅が想定の24時間から大きくずれる
+  /// (特に長くなる)ことがあり、その場合3時間区切りが8〜9個できてしまい、
+  /// スマートフォンの狭い画面幅ではラベル同士が詰まって重なって表示されて
+  /// いた。7d/30dと同じ「最大[_maxLabels]個に均等分割」方式へ統一し、
+  /// 実際のデータ幅がどんな長さであっても表示するラベルの個数が一定を
+  /// 超えないようにした。)
   Map<int, String> _chartLabels(List<EnvironmentLog> logs, String range) {
     if (logs.isEmpty) return const {};
     final base = logs.first.timestamp;
     int xOf(DateTime t) => (t.difference(base).inSeconds / 3600.0).round();
 
+    final idealTimes = _evenlySpacedTimes(
+      logs.first.timestamp,
+      logs.last.timestamp,
+      _maxLabels,
+    );
+
     if (range == '24h') {
-      final idealTimes = _threeHourBoundaries(
-        logs.first.timestamp,
-        logs.last.timestamp,
-      );
       return {
         for (final t in idealTimes)
           xOf(t): '${_twoDigits(t.hour)}:${_twoDigits(t.minute)}',
       };
     }
 
-    final idealTimes = _evenlySpacedTimes(
-      logs.first.timestamp,
-      logs.last.timestamp,
-      _maxDateLabels,
-    );
     return {for (final t in idealTimes) xOf(t): '${t.month}/${t.day}'};
   }
 
-  /// X軸に表示するラベルの最大個数(7d/30dで使用)。
-  static const int _maxDateLabels = 6;
-
-  /// [start]〜[end]の範囲に含まれる、3時間おきの壁時計上の区切り時刻
-  /// (00:00, 03:00, 06:00 …)を列挙する。
-  List<DateTime> _threeHourBoundaries(DateTime start, DateTime end) {
-    var boundary = DateTime(
-      start.year,
-      start.month,
-      start.day,
-      (start.hour ~/ 3) * 3,
-    );
-    while (boundary.isBefore(start)) {
-      boundary = boundary.add(const Duration(hours: 3));
-    }
-    final boundaries = <DateTime>[];
-    while (!boundary.isAfter(end)) {
-      boundaries.add(boundary);
-      boundary = boundary.add(const Duration(hours: 3));
-    }
-    return boundaries;
-  }
+  /// X軸に表示するラベルの最大個数(24h / 7d / 30d 共通)。
+  /// 実際のデータの時間幅がどれだけ長く/短くなっても、この個数を超えて
+  /// 表示しない(狭い画面幅でのラベルの重なりを防ぐため)。
+  static const int _maxLabels = 6;
 
   /// [start]〜[end]を[count]個に均等分割した時刻を列挙する
   /// ([start]と[end]自身を含む)。

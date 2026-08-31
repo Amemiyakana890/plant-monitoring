@@ -96,6 +96,25 @@ class HistoryLineChart extends StatelessWidget {
     final displayMinY = minY - gridInterval;
     final displayMaxY = maxY + gridInterval;
 
+    // 左右にも余白を持たせて、線やラベルがカードの端に張り付かないように
+    // する(Y軸で1目盛り分の余白を持たせているのと同じ考え方)。
+    // 等間隔ラベル([_evenlySpacedTimes]相当)は意図的に最初と最後の実データ
+    // 時刻を含めているため、余白が無いとちょうどプロット領域の端にラベルが
+    // 来てしまい、文字の後ろ半分が欠けたり隣接要素と重なって見えたりする
+    // (実際にAndroid実機でラベルが詰まって見える不具合として報告された)。
+    //
+    // 余白の量は必ず「1時間の整数倍」にする。ラベル側([xLabels]・
+    // bottomTitlesのinterval:1)は実時間(時間単位)を整数に丸めた値を
+    // キーにして紐付けているため、余白を中途半端な小数にすると目盛りの
+    // 評価位置(0, 1, 2, …からの整数間隔)がずれてしまい、ラベルが
+    // 正しい位置に出なくなる恐れがある。
+    final rawMinX = xValues.first;
+    final rawMaxX = xValues.last;
+    final xSpan = rawMaxX - rawMinX;
+    final xMarginHours = math.max(1, (xSpan * 0.04).round());
+    final displayMinX = rawMinX - xMarginHours;
+    final displayMaxX = rawMaxX + xMarginHours;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.medium),
@@ -123,8 +142,8 @@ class HistoryLineChart extends StatelessWidget {
               height: 160,
               child: LineChart(
                 LineChartData(
-                  minX: xValues.first,
-                  maxX: xValues.last,
+                  minX: displayMinX,
+                  maxX: displayMaxX,
                   minY: displayMinY,
                   maxY: displayMaxY,
                   gridData: FlGridData(
