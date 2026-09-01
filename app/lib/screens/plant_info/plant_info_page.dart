@@ -212,7 +212,10 @@ class PlantInfoPage extends StatelessWidget {
         const SizedBox(height: AppSpacing.medium),
         _CareProfileCard(plant: plant),
         const SizedBox(height: AppSpacing.medium),
-        CareTipsCard(title: '${plant.name}のケアポイント', tips: _monsteraCareTips),
+        CareTipsCard(
+          title: '${plant.speciesInfo.name}のケアポイント',
+          tips: _monsteraCareTips,
+        ),
       ],
     );
   }
