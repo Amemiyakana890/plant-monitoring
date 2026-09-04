@@ -20,17 +20,6 @@ class PlantInfoPage extends StatelessWidget {
 
   /// 植物育成アドバイス(ケアポイント)の文言。
   ///
-  /// TODO: 現状はモンステラ固定の文言を表示しているだけ。
-  /// 将来的には植物種カタログ(server/utils/speciesCatalog.js)側に
-  /// ケアポイントの文言も持たせ、植物種ごとに出し分ける形に差し替える
-  /// (企画書11章「今後の展望」参照)。
-  static const List<String> _monsteraCareTips = [
-    '直射日光を避け、明るい日陰を好みます',
-    '土の表面が乾いたら水やりをしましょう',
-    '適温は18〜30℃、霜に弱いです',
-    '月に1度、液体肥料を与えると元気になります',
-  ];
-
   /// 植物名(ニックネーム)だけを編集するダイアログ。
   Future<void> _showEditNameDialog(
     BuildContext context,
@@ -42,7 +31,7 @@ class PlantInfoPage extends StatelessWidget {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('植物名を編集'),
+        title: const Text('植物名(ニックネーム)を編集'),
         content: TextField(
           controller: nameController,
           decoration: const InputDecoration(labelText: '植物名(ニックネーム)'),
@@ -104,15 +93,14 @@ class PlantInfoPage extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.medium),
                 child: Text(
-                  '植物を選択する',
+                  '植物を選択',
                   style: Theme.of(sheetContext).textTheme.titleMedium,
                 ),
               ),
               for (final species in store.speciesCatalog)
                 ListTile(
                   leading: const Icon(Icons.local_florist),
-                  title: Text(species.name),
-                  subtitle: Text(species.scientificName),
+                  title: Text('${species.name}（${species.familyName}）'),
                   trailing: plant.speciesKey == species.key
                       ? Icon(
                           Icons.check,
@@ -164,18 +152,19 @@ class PlantInfoPage extends StatelessWidget {
                 padding: const EdgeInsets.all(AppSpacing.medium),
                 child: Column(
                   children: [
-                    _InfoRow(label: '植物名', value: plant.name),
+                    _InfoRow(label: '植物名(ニックネーム)', value: plant.name),
                     const Divider(),
                     _InfoRow(
                       label: '植物種',
-                      value: plant.speciesInfo.scientificName,
+                      value:
+                          '${plant.speciesInfo.name}（${plant.speciesInfo.familyName}）',
                     ),
                     const SizedBox(height: AppSpacing.medium),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.edit),
-                        label: const Text('植物名を編集する'),
+                        label: const Text('植物名(ニックネーム)を編集する'),
                         onPressed: () =>
                             _showEditNameDialog(context, store, plant),
                       ),
@@ -195,7 +184,7 @@ class PlantInfoPage extends StatelessWidget {
                                 ),
                               )
                             : const Icon(Icons.swap_horiz),
-                        label: const Text('植物を選択する'),
+                        label: const Text('植物を選択'),
                         onPressed:
                             (store.isLoadingSpeciesCatalog ||
                                 store.isSelectingSpecies)
@@ -214,7 +203,7 @@ class PlantInfoPage extends StatelessWidget {
         const SizedBox(height: AppSpacing.medium),
         CareTipsCard(
           title: '${plant.speciesInfo.name}のケアポイント',
-          tips: _monsteraCareTips,
+          tips: plant.speciesInfo.careTips,
         ),
       ],
     );
@@ -382,9 +371,13 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          Expanded(
+            flex: 2,
+            child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          ),
           const SizedBox(width: AppSpacing.small),
           Expanded(
+            flex: 3,
             child: Text(
               value,
               textAlign: TextAlign.right,
@@ -417,17 +410,20 @@ class _PlantPhotoHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final assetPath = 'images/plant_photos/${speciesKey ?? 'default'}.jpg';
+    const photoSpeciesKeys = {'monstera', 'pachira', 'sansevieria', 'pothos'};
+    final hasPhoto = photoSpeciesKeys.contains(speciesKey);
 
     return SizedBox(
       height: 160,
       width: double.infinity,
-      child: Image.asset(
-        assetPath,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) =>
-            _PhotoFallback(color: Theme.of(context).colorScheme.primary),
-      ),
+      child: hasPhoto
+          ? Image.asset(
+              'images/plant_photos/$speciesKey.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  _PhotoFallback(color: Theme.of(context).colorScheme.primary),
+            )
+          : _PhotoFallback(color: Theme.of(context).colorScheme.primary),
     );
   }
 }

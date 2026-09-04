@@ -179,7 +179,12 @@ class FakePlantRepository implements PlantRepository {
   // ---- 植物種カタログAPI(F-08・植物切り替え機能) ----
 
   List<PlantSpecies> speciesCatalog = const [
-    PlantSpecies(key: 'monstera', name: 'モンステラ', scientificName: 'サトイモ科モンステラ属'),
+    PlantSpecies(
+      key: 'monstera',
+      name: 'モンステラ',
+      scientificName: 'サトイモ科モンステラ属',
+      familyName: 'サトイモ科',
+    ),
   ];
   bool throwOnFetchSpeciesCatalog = false;
 

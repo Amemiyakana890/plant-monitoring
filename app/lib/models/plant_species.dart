@@ -6,11 +6,19 @@ class PlantSpecies {
   final String key;
   final String name;
   final String scientificName;
+  final String familyName;
+  final String description;
+  final List<String> careTips;
+  final double soilMoistureHealthyMin;
 
   const PlantSpecies({
     required this.key,
     required this.name,
     required this.scientificName,
+    this.familyName = '',
+    this.description = '',
+    this.careTips = const [],
+    this.soilMoistureHealthyMin = 0,
   });
 
   factory PlantSpecies.fromJson(Map<String, dynamic> json) {
@@ -18,6 +26,13 @@ class PlantSpecies {
       key: json['key'] as String,
       name: json['name'] as String,
       scientificName: json['scientific_name'] as String? ?? '',
+      familyName: json['family_name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      careTips: (json['care_tips'] as List<dynamic>? ?? const [])
+          .map((tip) => tip as String)
+          .toList(),
+      soilMoistureHealthyMin:
+          (json['soil_moisture_healthy_min'] as num?)?.toDouble() ?? 0,
     );
   }
 }

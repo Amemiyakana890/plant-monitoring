@@ -96,7 +96,7 @@ void main() {
     await tester.tap(find.text('植物'));
     await _settle(tester);
 
-    await tester.tap(find.text('植物名を編集する'));
+    await tester.tap(find.text('植物名(ニックネーム)を編集する'));
     await _settle(tester);
 
     await tester.enterText(

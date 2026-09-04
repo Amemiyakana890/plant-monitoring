@@ -29,7 +29,12 @@ const _registeredPlant = Plant(
 );
 
 const _speciesCatalog = [
-  PlantSpecies(key: 'monstera', name: 'モンステラ', scientificName: 'サトイモ科モンステラ属'),
+  PlantSpecies(
+    key: 'monstera',
+    name: 'モンステラ',
+    scientificName: 'サトイモ科モンステラ属',
+    familyName: 'サトイモ科',
+  ),
 ];
 
 /// [AppRoot](TestApp経由。本物のアプリではmain.dartのPlantMonitoringAppが
@@ -205,8 +210,8 @@ void main() {
         'ハスター',
       );
 
-      // 植物種のラジオボタンを選択する(カタログには「モンステラ」1件のみ)。
-      await tester.tap(find.text('モンステラ'));
+      // 植物種のラジオボタンを選択する。
+      await tester.tap(find.text('モンステラ（サトイモ科）'));
       await _settle(tester);
 
       // 送信する。

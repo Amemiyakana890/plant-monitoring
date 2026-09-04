@@ -101,23 +101,24 @@ test('温度: caution_zoneに2時間以上継続でneeds_care', () => {
 
 // --- 湿度(docs/status-notification-design.md 3-2, 24時間平均) ---
 
-test('湿度: 40〜60%はhealthy', () => {
+test('湿度: 40〜70%はhealthy', () => {
   assert.equal(classifyHumidityDailyAverage(40), 'healthy');
   assert.equal(classifyHumidityDailyAverage(50), 'healthy');
-  assert.equal(classifyHumidityDailyAverage(60), 'healthy');
+  assert.equal(classifyHumidityDailyAverage(70), 'healthy');
 });
 
-test('湿度: 20〜40%未満・60%超〜70%はcaution', () => {
+test('湿度: 20〜40%未満はcaution', () => {
   assert.equal(classifyHumidityDailyAverage(20), 'caution');
   assert.equal(classifyHumidityDailyAverage(39.9), 'caution');
-  assert.equal(classifyHumidityDailyAverage(65), 'caution');
-  assert.equal(classifyHumidityDailyAverage(70), 'caution');
 });
 
-test('湿度: 20%未満・70%超はneeds_care', () => {
+test('湿度: 70%超はneeds_care', () => {
+  assert.equal(classifyHumidityDailyAverage(70.1), 'needs_care');
+});
+
+test('湿度: 20%未満はneeds_care', () => {
   assert.equal(classifyHumidityDailyAverage(19.9), 'needs_care');
   assert.equal(classifyHumidityDailyAverage(0), 'needs_care');
-  assert.equal(classifyHumidityDailyAverage(70.1), 'needs_care');
   assert.equal(classifyHumidityDailyAverage(100), 'needs_care');
 });
 
@@ -298,10 +299,10 @@ test('classifyHumidityDailyAverage: 異なる閾値プロファイルを渡す�
   const highHumidityLovingThresholds = {
     humidity: { healthyMin: 60, healthyMax: 95, needsCareMin: 40, needsCareMax: 100 },
   };
-  // モンステラの閾値だと65%はcautionだが、多湿を好む植物のプロファイルなら
+  // モンステラの閾値だと75%はneeds_careだが、多湿を好む植物のプロファイルなら
   // healthyになる、という想定のテスト。
-  assert.equal(classifyHumidityDailyAverage(65, MONSTERA_THRESHOLDS), 'caution');
-  assert.equal(classifyHumidityDailyAverage(65, highHumidityLovingThresholds), 'healthy');
+  assert.equal(classifyHumidityDailyAverage(75, MONSTERA_THRESHOLDS), 'needs_care');
+  assert.equal(classifyHumidityDailyAverage(75, highHumidityLovingThresholds), 'healthy');
 });
 
 test('classifyIlluminanceDailyAverage: 異なる閾値プロファイルを渡すと判定が変わる', () => {

@@ -214,8 +214,7 @@ class _SpeciesSelector extends StatelessWidget {
               RadioListTile<String>(
                 value: species.key,
                 activeColor: AppColors.primary,
-                title: Text(species.name),
-                subtitle: Text(species.scientificName),
+                title: Text('${species.name}（${species.familyName}）'),
               ),
           ],
         ),
