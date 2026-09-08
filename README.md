@@ -135,20 +135,20 @@ C -->|API| E
 - ✅ デバイスペアリング機能の実装
 - ✅ 照度センサー(BH1750)の実接続、状態判定・通知への組み込み
 - ✅ 温度・湿度・照度の状態判定(適正/注意/要ケア)・通知ロジック(詳細は[status-notification-design.md](docs/status-notification-design.md)を参照)
-- ✅ モンステラの植物別条件(季節別の土壌水分閾値)
+- ✅ 植物種ごとの管理条件(季節別の土壌水分閾値。モンステラ・パキラ・サンセベリア・ポトスの4種に対応)
 - ✅ 季節別水やり条件(季節別閾値・継続時間による判定の遅延・水やり履歴による緩和)
 - ✅ 通知ロジック完成(サイレントタイム、カテゴリ別ON/OFF、複数項目同時悪化時の1件集約まで対応)
 - ✅ 水やり記録機能(ホーム画面の「水やりした」ボタン、履歴一覧・グラフへの反映は保留中)
-- ✅ 植物情報ページにて植物の切り替えの土台構築
 - ✅ 植物の新規登録画面(F-08)。`AppRoot`が植物未登録を検知すると自動でこの画面へ振り分け、送信すると`POST /plants`まで接続済み(`app/lib/screens/onboarding/plant_registration_page.dart`)。セットアップ時に`curl`コマンドで手動登録する必要はない
 - ✅ Push通知(Firebase Cloud Messaging(FCM)、Android先行対応。ログイン後にトークン登録、フォアグラウンドはバナーを出さず通知一覧のみ即時更新、バックグラウンド/終了状態はOS標準のシステム通知。詳細は[push-notification-design.md](docs/push-notification-design.md)を参照)
 - ⬜ Bluetooth Low Energy(BLE)は未着手(現状はデバイス名・MACアドレスの手入力でペアリング)
 - ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証。本人確認のゲートのみで、ユーザーごとのデータ分離は行わないパターンAでの実装)
 - ✅ v2:セキュリティ強化(サーバーAPIにFirebaseのIDトークン検証ミドルウェアを追加(`server/middleware/require_auth.js`)。`POST /sensor`のみESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
 - ✅ v2でのFirebase移行(ログイン機能・サーバーAPIの保護・Push通知(FCM)まで完了。Node.jsサーバーは置き換えず、`firebase-admin`経由で拡張する方針で確定・実装した)
-- ✅ v2で複数植物に対応にする(現在は4種で今後も拡大方針)
+- ✅ 植物種カタログの拡充(モンステラ・パキラ・サンセベリア・ポトスの4種、`GET /species`。育てたい植物を1種選んで登録・あとから植物情報ページで切り替えも可能。今後も種類を拡大予定)
+- ⬜ v2で複数植物(複数株)対応にする(例:モンステラとパキラを同時に2株登録して、それぞれ個別に見守る。サーバー側のAPI/DB(`plants`テーブル)は複数行に対応済みだが、アプリは引き続き`GET /plants`の先頭1件のみを表示・管理する実装のままで、2株目を追加する画面もまだ無い。上記の「植物種カタログ」とは別の課題で、こちらは未着手)
+- ⬜ v2で複数デバイス対応にする(1台のデバイスにつき植物1株、という前提自体が上記の複数植物対応と合わせて解消が必要)
 - ⬜ ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。新規登録ボタン(`LoginPage`)はこの方針に伴い意図的に開放したまま。詳細・残課題は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
-- ⬜ v2で複数デバイス対応にする
 
 ---
 

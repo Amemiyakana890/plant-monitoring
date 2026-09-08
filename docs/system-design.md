@@ -79,7 +79,7 @@ project
 
 ### 3-2. 植物情報画面
 
-- 植物名(自由入力)・植物種(カタログから選択。現状はモンステラのみ)を確認・編集する
+- 植物名(自由入力)・植物種(カタログから選択。モンステラ・パキラ・サンセベリア・ポトスの4種に対応)を確認・編集する
 - 紐づくデバイス情報(デバイス名など)を表示
 
 ### 3-3. 履歴画面
@@ -155,7 +155,7 @@ project
 | PATCH | /notifications/:id | 通知を既読にする | 通知/アラート | ログイン必須 |
 | GET | /settings/notification | 通知設定取得(サイレントタイム・カテゴリ別ON/OFF) | 設定 | ログイン必須 |
 | PUT | /settings/notification | 通知設定の更新 | 設定 | ログイン必須 |
-| GET | /species | 植物種カタログ取得(現状はモンステラのみ) | 植物情報/植物登録 | ログイン必須 |
+| GET | /species | 植物種カタログ取得(モンステラ・パキラ・サンセベリア・ポトスの4種) | 植物情報/植物登録 | ログイン必須 |
 
 ### 5-2. 植物 API
 
@@ -220,11 +220,22 @@ project
 
 ```json
 [
-  { "key": "monstera", "name": "モンステラ", "scientific_name": "サトイモ科モンステラ属" }
+  {
+    "key": "monstera",
+    "name": "モンステラ",
+    "scientific_name": "サトイモ科モンステラ属",
+    "family_name": "サトイモ科",
+    "description": "基準",
+    "care_tips": ["直射日光を避け、明るい場所で育てましょう。", "..."],
+    "soil_moisture_healthy_min": 40
+  },
+  { "key": "pachira", "name": "パキラ", "scientific_name": "アオイ科パキラ属", "family_name": "アオイ科", "description": "乾燥に強い・水にも強い・寒さにやや弱い", "soil_moisture_healthy_min": 30 },
+  { "key": "sansevieria", "name": "サンスベリア", "scientific_name": "キジカクシ科サンセベリア属", "family_name": "キジカクシ科", "description": "4種で最も乾燥・低照度に強い、冬はほぼ断水", "soil_moisture_healthy_min": 15 },
+  { "key": "pothos", "name": "ポトス", "scientific_name": "サトイモ科ハブカズラ属", "family_name": "サトイモ科", "description": "4種で最も多湿好き、水切れ(特に夏)に弱い", "soil_moisture_healthy_min": 40 }
 ]
 ```
 
-v1はモンステラ1種のみを固定カタログ(`server/utils/speciesCatalog.js`)として持たせている(DBテーブル化はしていない)。将来、利用者自身が植物種を追加できるようにする場合はこの定数をDBテーブル+管理APIに置き換える想定([status-notification-design.md 9章](status-notification-design.md)を参照)。
+v1はモンステラ・パキラ・サンセベリア・ポトスの4種を固定カタログ(`server/utils/speciesCatalog.js`)として持たせている(DBテーブル化はしていない)。各種のしきい値はモンステラの実測値(`MONSTERA_THRESHOLDS`)をベースに、湿度・土壌水分のしきい値のみ種ごとに調整したもので、温度・照度のしきい値は4種共通(モンステラの値を流用)。将来、利用者自身が植物種を追加できるようにする場合はこの定数をDBテーブル+管理APIに置き換える想定([status-notification-design.md 9章](status-notification-design.md)を参照)。
 
 ### 5-3. デバイス API
 
@@ -327,7 +338,7 @@ ESP32はデバイスIDを含めてデータを送信する(植物IDではなく�
 | thirsty(少し乾いています) | caution_zoneに6時間以上継続、または要ケアゾーンでも直近の水やりから2時間以内 |
 | dry(乾燥しています) | 要ケアゾーン(季節別のneeds_care閾値未満)かつ、水やり緩和の対象外 |
 
-温度・湿度・照度についても同様に閾値・継続時間ベースの判定ロジックが実装されており、`plants`テーブルの`temp_status`・`humidity_daily_status`・`illuminance_daily_status`に保存される(4項目の中で最も深刻なものをホーム画面の通知メッセージに反映する「worst-of方式」)。閾値は植物種ごとの閾値プロファイル(5-2-1章の植物種カタログ)から取得し、v1はモンステラの実測・公開情報に基づく値のみを使用する。判定ロジック・通知設計の詳細は[status-notification-design.md](status-notification-design.md)を参照。
+温度・湿度・照度についても同様に閾値・継続時間ベースの判定ロジックが実装されており、`plants`テーブルの`temp_status`・`humidity_daily_status`・`illuminance_daily_status`に保存される(4項目の中で最も深刻なものをホーム画面の通知メッセージに反映する「worst-of方式」)。閾値は植物種ごとの閾値プロファイル(5-2-1章の植物種カタログ)から取得し、v1はモンステラ・パキラ・サンセベリア・ポトスの4種、いずれも実測・公開情報に基づく値を使用する(モンステラが実測ベース、他3種は公開情報に基づく調整値。温度・照度のしきい値は4種共通)。判定ロジック・通知設計の詳細は[status-notification-design.md](status-notification-design.md)を参照。
 
 ### 5-8. エラーレスポンス形式
 

@@ -235,13 +235,14 @@ lib/
 - **ログイン機能(Firebase Authentication、メール/パスワード)**。起動時に`AuthGate`でログイン状態を判定し、未ログイン時は`LoginPage`を表示(設定手順は本ファイル6章を参照)
 - **サーバーAPIの保護**。サーバー側にFirebaseのIDトークン検証ミドルウェア(`server/middleware/require_auth.js`)を追加し、`/sensor`以外の全APIに適用。`POST /sensor`はESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照
 - **植物の新規登録画面(F-08)**。`AppRoot`が植物未登録を検知すると自動で登録画面へ振り分け、`POST /plants`まで接続済み(`app/lib/screens/onboarding/plant_registration_page.dart`)。セットアップ時に`curl`コマンドで手動登録する必要はない
-- **植物種の選択・切り替え**(F-08・植物情報ページ)。`GET /species`のカタログ(現状はモンステラのみ)から選び、通知の閾値・「この植物の管理条件」カードに反映される(`app/lib/screens/plant_info/plant_info_page.dart`)
+- **植物種の選択・切り替え**(F-08・植物情報ページ)。`GET /species`のカタログ(モンステラ・パキラ・サンセベリア・ポトスの4種)から選び、通知の閾値・「この植物の管理条件」カードに反映される(`app/lib/screens/plant_info/plant_info_page.dart`)。あくまで「登録済みの1株がどの植物種か」を選ぶ機能であり、複数株を同時に登録・管理する機能ではない点に注意(下記「今後実装予定」参照)
 - **Push通知(Firebase Cloud Messaging、Android先行)**。ログイン成功後に`PushNotificationService`が権限リクエスト・通知チャンネル作成・FCMトークン登録(`PUT /devices/tokens`)・受信ハンドリングを行う。フォアグラウンド受信時はバナーを出さず通知一覧を即時更新するのみ、バックグラウンド/終了状態はOS標準のシステム通知に任せる設計(詳細は[push-notification-design.md](../docs/push-notification-design.md)を参照)。iOS対応はAPNs証明書等が前提のため未着手
 
 ### 🔄 今後実装予定
 
 - iOS向けPush通知対応(APNs証明書・Apple Developer Program登録が前提)
 - BLEの導入(実機のBLE/Wi-Fiスキャン。現状はデバイス名・MACアドレスの手入力でペアリング)
+- 複数植物(複数株)・複数デバイス対応(例:モンステラとパキラを同時に2株登録して見守る。サーバー側のAPI/DBは複数行に対応済みだが、アプリは`GET /plants`の先頭1件のみを表示・管理する実装のままで、2株目を追加する画面もまだ無い。上記の植物種選択〈4種〉とは別の課題)
 - 複数ユーザー対応(単一ユーザー前提から方針転換。ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。`LoginPage`の新規登録ボタンはこの方針に伴い意図的に開放したまま。設計・残課題は[v2-firebase-security-design.md](../docs/v2-firebase-security-design.md)を参照)
 - Push専用ON/OFFトグル(現状はアプリ内通知と同じ設定に連動。[push-notification-design.md](../docs/push-notification-design.md) 7章を参照)
 - ログアウト時のFCMトークン削除(`DELETE /devices/tokens`は実装済みだが、`settings_page.dart`のログアウト操作からはまだ呼んでいない)
