@@ -146,8 +146,9 @@ C -->|API| E
 - ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証。本人確認のゲートのみで、ユーザーごとのデータ分離は行わないパターンAでの実装)
 - ✅ v2:セキュリティ強化(サーバーAPIにFirebaseのIDトークン検証ミドルウェアを追加(`server/middleware/require_auth.js`)。`POST /sensor`のみESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
 - ✅ v2でのFirebase移行(ログイン機能・サーバーAPIの保護・Push通知(FCM)まで完了。Node.jsサーバーは置き換えず、`firebase-admin`経由で拡張する方針で確定・実装した)
-- ✅ v2で複数ユーザー対応にする(単一ユーザー前提から方針転換。ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。新規登録ボタン(`LoginPage`)はこの方針に伴い意図的に開放したまま。詳細・残課題は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
-- ✅ v2で複数植物・複数デバイス対応にする
+- ✅ v2で複数植物に対応にする(現在は4種で今後も拡大方針)
+- ⬜ ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。新規登録ボタン(`LoginPage`)はこの方針に伴い意図的に開放したまま。詳細・残課題は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
+- ⬜ v2で複数デバイス対応にする
 
 ---
 
