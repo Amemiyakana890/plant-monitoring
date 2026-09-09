@@ -238,5 +238,3 @@ copy .env.example .env
 | `DEVICE_API_KEY` | ESP32から`POST /sensor`を送信する際のデバイス認証キー(任意の長い文字列) | 自分で長めのランダム文字列を生成して設定する(例: `openssl rand -hex 32`)。`esp32/plant_sensor_integrated/secrets.h`側の`DEVICE_API_KEY`にも同じ値を設定すること |
 
 設定後、`node app.js`を起動した際にコンソールへ`Firebase IDトークンの検証に失敗しました: Unable to detect a Project Id...`のような警告が出る場合は、`GOOGLE_APPLICATION_CREDENTIALS`のパスが誤っているか、指定したファイルが存在しない可能性があります。
-
-## GitHub Desktop テスト
