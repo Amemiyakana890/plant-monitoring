@@ -78,6 +78,77 @@ void main() {
     expect(find.byType(AppRoot), findsNothing);
   });
 
+  testWidgets('ログイン画面で新規登録へ切り替え、パスワード表示を変更できる', (tester) async {
+    final fakeAuth = FakeFirebaseAuth();
+    addTearDown(fakeAuth.dispose);
+
+    await pumpAuthGate(tester, fakeAuth: fakeAuth);
+    fakeAuth.emit(null);
+    await tester.pumpAndSettle();
+
+    expect(find.text('おかえりなさい'), findsOneWidget);
+    expect(find.text('ログインする'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('はじめての方はこちら（新規登録）'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('はじめての方はこちら（新規登録）'));
+    await tester.pumpAndSettle();
+    expect(find.text('はじめまして'), findsOneWidget);
+    expect(find.text('アカウントを作成する'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('アカウントをお持ちの方はこちら'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('アカウントをお持ちの方はこちら'));
+    await tester.pumpAndSettle();
+    expect(find.text('おかえりなさい'), findsOneWidget);
+
+    await tester.ensureVisible(find.byTooltip('パスワードを表示'));
+    await tester.pumpAndSettle();
+    final passwordField = tester.widget<TextField>(find.byType(TextField).last);
+    expect(passwordField.obscureText, isTrue);
+    await tester.tap(find.byTooltip('パスワードを表示'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).obscureText,
+      isFalse,
+    );
+  });
+
+  testWidgets('狭い画面幅でもログイン画面がオーバーフローしない', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final width in [220.0, 188.0]) {
+      tester.view.physicalSize = Size(width, 600);
+      final fakeAuth = FakeFirebaseAuth();
+      addTearDown(fakeAuth.dispose);
+
+      await pumpAuthGate(tester, fakeAuth: fakeAuth);
+      fakeAuth.emit(null);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: '画面幅: $width');
+    }
+
+    addTearDown(tester.view.resetPhysicalSize);
+  });
+
+  testWidgets('ログイン時に入力値の形式を検証する', (tester) async {
+    final fakeAuth = FakeFirebaseAuth();
+    addTearDown(fakeAuth.dispose);
+
+    await pumpAuthGate(tester, fakeAuth: fakeAuth);
+    fakeAuth.emit(null);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ログインする'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('メールアドレスを正しく入力してください'), findsOneWidget);
+    expect(find.text('パスワードは6文字以上で入力してください'), findsOneWidget);
+  });
+
   testWidgets('ログイン済みの場合はAppRootへ切り替わる', (tester) async {
     final fakeAuth = FakeFirebaseAuth();
     addTearDown(fakeAuth.dispose);
