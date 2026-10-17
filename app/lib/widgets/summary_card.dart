@@ -28,12 +28,36 @@ class SummaryCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.analytics,
-                  color: Theme.of(context).colorScheme.primary,
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF0E4),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.spa_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.extraSmall),
-                Text('今日のまとめ', style: Theme.of(context).textTheme.titleLarge),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '今日のまとめ',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(
+                        '植物のそばの環境を記録しています',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF718B5D),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.medium),

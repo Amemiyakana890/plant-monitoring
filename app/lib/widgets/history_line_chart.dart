@@ -95,6 +95,23 @@ class HistoryLineChart extends StatelessWidget {
     // (gridIntervalの倍数のまま増減させるので、目盛りの値は崩れない)。
     final displayMinY = minY - gridInterval;
     final displayMaxY = maxY + gridInterval;
+    final yAxisTextStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
+    );
+    final yAxisIntervalCount = ((displayMaxY - displayMinY) / gridInterval)
+        .round();
+    var yAxisReservedSize = 34.0;
+    for (var i = 0; i <= yAxisIntervalCount; i++) {
+      final label = _formatValue(displayMinY + i * gridInterval);
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: yAxisTextStyle),
+        textDirection: Directionality.of(context),
+        maxLines: 1,
+      )..layout();
+      yAxisReservedSize = math.max(yAxisReservedSize, painter.width + 12);
+    }
 
     // 左右にも余白を持たせて、線やラベルがカードの端に張り付かないように
     // する(Y軸で1目盛り分の余白を持たせているのと同じ考え方)。
@@ -168,19 +185,12 @@ class HistoryLineChart extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 34,
+                        reservedSize: yAxisReservedSize,
                         interval: gridInterval,
                         getTitlesWidget: (value, meta) {
                           return Text(
                             _formatValue(value),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.color
-                                      ?.withValues(alpha: 0.6),
-                                ),
+                            style: yAxisTextStyle,
                           );
                         },
                       ),

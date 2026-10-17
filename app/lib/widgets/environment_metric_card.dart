@@ -46,27 +46,48 @@ class EnvironmentMetricCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // カード幅が狭い(半分幅・狭いブラウザ幅など)環境で、
-                // ラベル(例:「土壌水分」)+アイコンがRenderFlowオーバーフロー
-                // していたため、_WateringFooterの「水やり」ボタンと同じ対処
-                // (Flexible + ellipsis)を入れて、入り切らない場合は確実に
-                // 省略表示になるようにしている。
-                Flexible(
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: status.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    status.label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: status.color,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                Icon(icon, color: iconColor),
               ],
             ),
-            const SizedBox(height: AppSpacing.small),
+            const SizedBox(height: AppSpacing.medium),
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF718B5D)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: AppSpacing.extraSmall),
             Text(
               valueText,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: status.color,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -77,22 +98,7 @@ class EnvironmentMetricCard extends StatelessWidget {
                 value: status.ratio,
                 minHeight: 6,
                 color: status.color,
-                backgroundColor: status.color.withValues(alpha: 0.15),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.small),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: status.color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppRadii.medium),
-              ),
-              child: Text(
-                status.label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: status.color,
-                  fontWeight: FontWeight.w600,
-                ),
+                backgroundColor: const Color(0xFFE7EDE1),
               ),
             ),
             // キャプション欄は「表示する/しない」で高さを動的に変えず、

@@ -33,7 +33,38 @@ class MainPage extends StatelessWidget {
     final currentIndex = MainTabControllerScope.of(context).currentIndex;
 
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[currentIndex])),
+      appBar: AppBar(
+        centerTitle: false,
+        toolbarHeight: 72,
+        titleSpacing: 12,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16, top: 10, bottom: 10),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(Icons.eco_rounded, color: Colors.white),
+          ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'PLANT CARE',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: const Color(0xFFD3E3C8),
+                letterSpacing: 1.8,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(_titles[currentIndex]),
+          ],
+        ),
+      ),
       body: _pages[currentIndex],
       bottomNavigationBar: const AppBottomNavBar(),
     );

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:plant_monitoring_app/repositories/dummy_plant_repository.dart';
 import 'package:plant_monitoring_app/state/plant_store.dart';
 import 'package:plant_monitoring_app/state/theme_controller.dart';
 import 'package:plant_monitoring_app/theme/app_colors.dart';
+import 'package:plant_monitoring_app/widgets/history_line_chart.dart';
 import 'package:plant_monitoring_app/widgets/plant_card.dart';
 
 import 'support/test_app.dart';
@@ -118,5 +120,43 @@ void main() {
 
     expect(materialApp.theme?.colorScheme.primary, AppColors.primary);
     expect(materialApp.theme?.scaffoldBackgroundColor, AppColors.background);
+    expect(materialApp.theme?.textTheme.bodyMedium?.fontFamily, 'NotoSansJP');
   }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('狭い画面幅でも設定画面のデバイスカードがはみ出さない', (tester) async {
+    tester.view.physicalSize = const Size(188, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpApp(tester);
+    await tester.tap(find.text('設定').last);
+    await _settle(tester);
+
+    expect(tester.takeException(), isNull);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  testWidgets('グラフのY軸ラベル全体が表示される幅を確保する', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(),
+        home: Scaffold(
+          body: HistoryLineChart(
+            title: '光量',
+            unit: ' lx',
+            color: Colors.amber,
+            xValues: const [0, 1, 2],
+            xLabels: const {0: '21:00', 2: '21:15'},
+            values: const [146.5, 145.5, 144.5],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final chart = tester.widget<LineChart>(find.byType(LineChart));
+    expect(chart.data.titlesData.leftTitles.sideTitles.reservedSize, greaterThan(34));
+    expect(find.text('146.5'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

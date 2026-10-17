@@ -2,22 +2,22 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // メインカラー
-  static const Color primary = Color(0xFF5B7C5A);
+  static const Color primary = Color(0xFF36543A);
 
   // サブカラー
-  static const Color secondary = Color(0xFF9CB89C);
+  static const Color secondary = Color(0xFF8FAA78);
 
   // アクセントカラー
-  static const Color accent = Color(0xFFD9C9A3);
+  static const Color accent = Color(0xFFE5B96F);
 
   // 背景色
-  static const Color background = Color(0xFFF8F5F0);
+  static const Color background = Color(0xFFF2F5EB);
 
   // カード
   static const Color surface = Colors.white;
 
   // 文字色
-  static const Color textPrimary = Color(0xFF333333);
+  static const Color textPrimary = Color(0xFF29382B);
 
   // 状態色
   static const Color success = Color(0xFF5B7C5A);

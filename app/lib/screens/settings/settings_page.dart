@@ -118,26 +118,25 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.small),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: linkedDevice != null
-                              ? Colors.lightGreenAccent
-                              : Colors.white38,
-                          shape: BoxShape.circle,
+                  Semantics(
+                    label: linkedDevice != null ? 'オンライン' : '未接続',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: linkedDevice != null
+                                ? Colors.lightGreenAccent
+                                : Colors.white38,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.extraSmall),
-                      Text(
-                        linkedDevice != null ? 'オンライン' : '未接続',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      const Icon(Icons.chevron_right, color: Colors.white70),
-                    ],
+                        const SizedBox(width: AppSpacing.extraSmall),
+                        const Icon(Icons.chevron_right, color: Colors.white70),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -181,24 +180,50 @@ class _SettingsPageState extends State<SettingsPage> {
               horizontal: AppSpacing.medium,
               vertical: AppSpacing.small,
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.palette),
-                const SizedBox(width: AppSpacing.medium),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('テーマ'),
-                      Text(
-                        themeController.isDark ? 'ダークモード' : 'ライトモード',
-                        style: Theme.of(context).textTheme.bodySmall,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 340;
+                final title = Row(
+                  children: [
+                    const Icon(Icons.palette),
+                    const SizedBox(width: AppSpacing.medium),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('テーマ'),
+                          Text(
+                            themeController.isDark ? 'ダークモード' : 'ライトモード',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
+                    ),
+                  ],
+                );
+                final toggle = _ThemeToggle(
+                  controller: themeController,
+                  compact: compact,
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      title,
+                      const SizedBox(height: AppSpacing.small),
+                      Align(alignment: Alignment.centerRight, child: toggle),
                     ],
-                  ),
-                ),
-                _ThemeToggle(controller: themeController),
-              ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: title),
+                    toggle,
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -252,8 +277,9 @@ class _SettingsPageState extends State<SettingsPage> {
 /// 「ライト / ダーク」の2択セグメントボタン。
 class _ThemeToggle extends StatelessWidget {
   final ThemeController controller;
+  final bool compact;
 
-  const _ThemeToggle({required this.controller});
+  const _ThemeToggle({required this.controller, required this.compact});
 
   @override
   Widget build(BuildContext context) {
@@ -271,12 +297,14 @@ class _ThemeToggle extends StatelessWidget {
             icon: Icons.wb_sunny,
             selected: !controller.isDark,
             onTap: controller.setLight,
+            compact: compact,
           ),
           _ThemeToggleButton(
             label: 'ダーク',
             icon: Icons.nightlight_round,
             selected: controller.isDark,
             onTap: controller.setDark,
+            compact: compact,
           ),
         ],
       ),
@@ -289,40 +317,50 @@ class _ThemeToggleButton extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final bool compact;
 
   const _ThemeToggleButton({
     required this.label,
     required this.icon,
     required this.selected,
     required this.onTap,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadii.medium),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadii.medium),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: selected ? Colors.white : AppColors.textPrimary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.medium),
+        onTap: onTap,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 12,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 16,
                 color: selected ? Colors.white : AppColors.textPrimary,
               ),
-            ),
-          ],
+              if (!compact) ...[
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

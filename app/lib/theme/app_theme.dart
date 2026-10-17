@@ -21,26 +21,31 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
-      textTheme: AppTextStyles.textTheme,
+      fontFamily: 'NotoSansJP',
+      textTheme: AppTextStyles.textTheme.apply(fontFamily: 'NotoSansJP'),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         centerTitle: true,
+        elevation: 0,
         titleTextStyle: AppTextStyles.titleLarge.copyWith(color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surface,
-        elevation: 1,
+        elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.medium),
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: Color(0xFFDCE6D3)),
         ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: Color(0xFF8A9687),
         type: BottomNavigationBarType.fixed,
+        elevation: 12,
+        selectedLabelStyle: TextStyle(fontWeight: FontWeight.w700),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -83,7 +88,9 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: darkBackground,
+      fontFamily: 'NotoSansJP',
       textTheme: AppTextStyles.textTheme.apply(
+        fontFamily: 'NotoSansJP',
         bodyColor: Colors.white,
         displayColor: Colors.white,
       ),
@@ -95,17 +102,20 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: darkSurface,
-        elevation: 1,
+        elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.medium),
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: darkSurface,
         selectedItemColor: AppColors.secondary,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: Colors.white54,
         type: BottomNavigationBarType.fixed,
+        elevation: 12,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
