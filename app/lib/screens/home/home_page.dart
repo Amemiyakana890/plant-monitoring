@@ -64,10 +64,7 @@ class _HomeSectionHeading extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 3),
-              Text(
-                '現在の環境',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text('現在の環境', style: Theme.of(context).textTheme.titleLarge),
             ],
           ),
         ),

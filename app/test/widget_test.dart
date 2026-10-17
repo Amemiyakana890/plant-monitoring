@@ -155,7 +155,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final chart = tester.widget<LineChart>(find.byType(LineChart));
-    expect(chart.data.titlesData.leftTitles.sideTitles.reservedSize, greaterThan(34));
+    expect(
+      chart.data.titlesData.leftTitles.sideTitles.reservedSize,
+      greaterThan(34),
+    );
     expect(find.text('146.5'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
