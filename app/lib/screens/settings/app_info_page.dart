@@ -4,13 +4,13 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_dimensions.dart';
 import '../../widgets/app_bottom_nav_bar.dart';
 import '../../widgets/settings_app_bar.dart';
+import 'privacy_policy_page.dart';
 
 /// アプリ情報画面。
 ///
 /// 「アプリについて」の説明文と、プライバシーポリシー・利用規約・
 /// オープンソースライセンス・サポートへの問い合わせの4項目で構成する。
-/// 各項目の詳細な内容(実際の文章・問い合わせ手段など)は今後追記する想定のため、
-/// 現時点ではタップ時に「今後実装予定」を表示するのみ。
+/// プライバシーポリシーはアプリ内に表示し、その他の項目は今後実装する。
 class AppInfoPage extends StatelessWidget {
   const AppInfoPage({super.key});
 
@@ -98,7 +98,11 @@ class AppInfoPage extends StatelessWidget {
                         icon: Icons.lock,
                         iconBackground: AppColors.warning,
                         title: 'プライバシーポリシー',
-                        onTap: () => _showComingSoon(context, 'プライバシーポリシー'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const PrivacyPolicyPage(),
+                          ),
+                        ),
                       ),
                       const Divider(height: 1),
                       _AppInfoTile(

@@ -92,6 +92,23 @@ void main() {
     expect(find.text('デバイス未接続'), findsWidgets);
   }, timeout: const Timeout(Duration(seconds: 30)));
 
+  testWidgets('アプリ情報からプライバシーポリシー草案を開ける', (tester) async {
+    await _pumpApp(tester);
+
+    await tester.tap(find.text('設定').last);
+    await _settle(tester);
+    await tester.ensureVisible(find.text('アプリ情報'));
+    await tester.tap(find.text('アプリ情報'));
+    await _settle(tester);
+
+    await tester.ensureVisible(find.text('プライバシーポリシー'));
+    await tester.tap(find.text('プライバシーポリシー'));
+    await _settle(tester);
+
+    expect(find.textContaining('メールアドレスを取得します'), findsOneWidget);
+    expect(find.text('プライバシーポリシー'), findsOneWidget);
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
   testWidgets('植物情報画面で植物名・植物種を編集できる', (tester) async {
     await _pumpApp(tester);
 

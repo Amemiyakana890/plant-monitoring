@@ -181,7 +181,7 @@ lib/
 │   ├── history/
 │   ├── notification/
 │   ├── plant_info/
-│   ├── settings/
+│   ├── settings/                # プライバシーポリシー草案を含む
 │   └── main_page.dart
 │
 ├── theme/
