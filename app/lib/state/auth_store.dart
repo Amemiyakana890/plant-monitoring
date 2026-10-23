@@ -29,9 +29,13 @@ class AuthStore extends ChangeNotifier {
 
   bool isSubmitting = false;
   String? errorMessage;
+  String? _lastErrorCode;
   Future<void> Function()? beforeSignOut;
 
   bool get isSignedIn => currentUser != null;
+  bool get shouldOfferRegistration =>
+      _lastErrorCode == 'user-not-found' ||
+      _lastErrorCode == 'invalid-credential';
 
   Future<bool> signIn({required String email, required String password}) {
     return _submit(
@@ -59,6 +63,7 @@ class AuthStore extends ChangeNotifier {
   Future<bool> _submit(Future<UserCredential> Function() action) async {
     isSubmitting = true;
     errorMessage = null;
+    _lastErrorCode = null;
     notifyListeners();
     try {
       await action();
@@ -66,6 +71,7 @@ class AuthStore extends ChangeNotifier {
       // ここで明示的にcurrentUserを代入する必要はない。
       return true;
     } on FirebaseAuthException catch (e) {
+      _lastErrorCode = e.code;
       errorMessage = _messageFor(e.code);
       return false;
     } catch (_) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:plant_monitoring_app/repositories/dummy_plant_repository.dart';
 import 'package:plant_monitoring_app/screens/app_root.dart';
 import 'package:plant_monitoring_app/screens/auth/login_page.dart';
@@ -32,10 +33,12 @@ void main() {
   Future<AuthStore> pumpAuthGate(
     WidgetTester tester, {
     required FakeFirebaseAuth fakeAuth,
+    bool needsPlantRegistration = false,
   }) async {
     final authStore = AuthStore(firebaseAuth: fakeAuth);
     addTearDown(authStore.dispose);
     final plantStore = PlantStore(DummyPlantRepository());
+    plantStore.needsRegistration = needsPlantRegistration;
     addTearDown(plantStore.dispose);
 
     await tester.pumpWidget(
@@ -78,6 +81,31 @@ void main() {
     expect(find.byType(AppRoot), findsNothing);
   });
 
+  testWidgets('植物登録画面から確認後ログアウトしてログイン画面へ戻れる', (tester) async {
+    final fakeAuth = FakeFirebaseAuth();
+    addTearDown(fakeAuth.dispose);
+
+    await pumpAuthGate(
+      tester,
+      fakeAuth: fakeAuth,
+      needsPlantRegistration: true,
+    );
+    fakeAuth.emit(FakeUser());
+    await tester.pumpAndSettle();
+
+    expect(find.text('植物を登録'), findsOneWidget);
+    await tester.tap(find.byTooltip('ログアウトしてログイン画面へ戻る'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('植物登録を中断しますか？'), findsOneWidget);
+    expect(find.textContaining('アカウント作成は完了しています'), findsOneWidget);
+    await tester.tap(find.text('中断してログアウト'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(find.text('おかえりなさい'), findsOneWidget);
+  });
+
   testWidgets('ログイン画面で新規登録へ切り替え、パスワード表示を変更できる', (tester) async {
     final fakeAuth = FakeFirebaseAuth();
     addTearDown(fakeAuth.dispose);
@@ -96,9 +124,9 @@ void main() {
     expect(find.text('はじめまして'), findsOneWidget);
     expect(find.text('アカウントを作成する'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('アカウントをお持ちの方はこちら'));
+    await tester.ensureVisible(find.text('← ログインに戻る'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('アカウントをお持ちの方はこちら'));
+    await tester.tap(find.text('← ログインに戻る'));
     await tester.pumpAndSettle();
     expect(find.text('おかえりなさい'), findsOneWidget);
 
@@ -112,6 +140,40 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).last).obscureText,
       isFalse,
     );
+  });
+
+  testWidgets('未登録アカウントのログイン失敗時に新規作成を案内し、戻れる', (tester) async {
+    final fakeAuth = FakeFirebaseAuth()
+      ..signInError = FirebaseAuthException(code: 'user-not-found');
+    addTearDown(fakeAuth.dispose);
+
+    await pumpAuthGate(tester, fakeAuth: fakeAuth);
+    fakeAuth.emit(null);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, 'new@example.com');
+    await tester.enterText(find.byType(TextField).last, 'password123');
+    await tester.ensureVisible(find.text('ログインする'));
+    await tester.tap(find.text('ログインする'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ログインできませんでした'), findsOneWidget);
+    expect(find.text('新規作成へ'), findsOneWidget);
+    await tester.tap(find.text('新規作成へ'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('はじめまして'), findsOneWidget);
+    expect(find.text('アカウントを作成する'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+      'new@example.com',
+    );
+    await tester.ensureVisible(find.text('← ログインに戻る'));
+    await tester.tap(find.text('← ログインに戻る'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('おかえりなさい'), findsOneWidget);
+    expect(find.text('ログインする'), findsOneWidget);
   });
 
   testWidgets('狭い画面幅でもログイン画面がオーバーフローしない', (tester) async {

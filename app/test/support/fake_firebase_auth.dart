@@ -32,6 +32,7 @@ class FakeFirebaseAuth extends _NoSuchMethodFallback implements FirebaseAuth {
   FakeFirebaseAuth() : _controller = StreamController<User?>.broadcast();
 
   final StreamController<User?> _controller;
+  Object? signInError;
 
   /// authStateChanges()経由でログイン状態の変化を流す。
   /// nullを渡すと「未ログイン」、[FakeUser]等の非null値で「ログイン済み」を表す。
@@ -44,7 +45,18 @@ class FakeFirebaseAuth extends _NoSuchMethodFallback implements FirebaseAuth {
   User? get currentUser => null;
 
   @override
-  Future<void> signOut() async {}
+  Future<void> signOut() async {
+    emit(null);
+  }
+
+  @override
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    if (signInError case final error?) throw error;
+    throw UnimplementedError('成功するログインはこのフェイクでは実装していません。');
+  }
 
   void dispose() => _controller.close();
 }

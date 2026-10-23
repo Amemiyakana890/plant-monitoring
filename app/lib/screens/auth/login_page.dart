@@ -52,6 +52,37 @@ class _LoginPageState extends State<LoginPage> {
         : await store.signIn(email: email, password: password);
 
     if (!success && mounted) {
+      if (!_isRegisterMode && store.shouldOfferRegistration) {
+        final shouldCreateAccount = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('ログインできませんでした'),
+            content: const Text(
+              'メールアドレスまたはパスワードが正しくないか、'
+              'アカウントが未作成の可能性があります。'
+              '未登録の場合は新規作成画面へ進めます。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('ログイン画面に戻る'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('新規作成へ'),
+              ),
+            ],
+          ),
+        );
+        if (shouldCreateAccount == true && mounted) {
+          setState(() {
+            _isRegisterMode = true;
+            _triedSubmit = false;
+            _passwordController.clear();
+          });
+        }
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(store.errorMessage ?? 'ログインできませんでした')),
       );
@@ -239,7 +270,7 @@ class _LoginPageState extends State<LoginPage> {
                                         }),
                                   child: Text(
                                     _isRegisterMode
-                                        ? 'アカウントをお持ちの方はこちら'
+                                        ? '← ログインに戻る'
                                         : 'はじめての方はこちら（新規登録）',
                                   ),
                                 ),

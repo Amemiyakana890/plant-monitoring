@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../state/auth_store_scope.dart';
 import '../../state/plant_store.dart';
 import '../../state/plant_store_scope.dart';
 import '../../theme/app_colors.dart';
@@ -78,6 +79,32 @@ class _PlantRegistrationPageState extends State<PlantRegistrationPage> {
     // MainPage へ切り替える。
   }
 
+  Future<void> _returnToLogin(BuildContext context) async {
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('植物登録を中断しますか？'),
+        content: const Text(
+          'アカウント作成は完了しています。ログイン画面へ戻るにはログアウトします。'
+          'アカウントは削除されず、次回ログインすると植物登録を再開できます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('登録を続ける'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('中断してログアウト'),
+          ),
+        ],
+      ),
+    );
+    if (shouldSignOut == true && context.mounted) {
+      await AuthStoreScope.of(context).signOut();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = PlantStoreScope.of(context);
@@ -85,7 +112,14 @@ class _PlantRegistrationPageState extends State<PlantRegistrationPage> {
     final showSpeciesError = _triedSubmit && _selectedSpeciesKey == null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('植物を登録')),
+      appBar: AppBar(
+        title: const Text('植物を登録'),
+        leading: IconButton(
+          tooltip: 'ログアウトしてログイン画面へ戻る',
+          onPressed: () => _returnToLogin(context),
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.medium),
