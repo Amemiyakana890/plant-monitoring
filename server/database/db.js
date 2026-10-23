@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { createHash } from 'node:crypto';
 
 // node:sqliteについて:
 // Node.js組み込みのため依存パッケージを増やさずに済むが、2026年7月時点でも
@@ -25,6 +26,8 @@ db.exec('PRAGMA foreign_keys = ON;');
 db.exec(`
   CREATE TABLE IF NOT EXISTS devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_uid TEXT,
+    api_key_hash TEXT,
     device_name TEXT NOT NULL,
     mac_address TEXT NOT NULL UNIQUE,
     firmware_version TEXT,
@@ -42,6 +45,7 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS plants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_uid TEXT,
     device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     species TEXT,
@@ -167,6 +171,7 @@ for (const column of soilStatusColumns) {
 db.exec(`
   CREATE TABLE IF NOT EXISTS notification_settings (
     id INTEGER PRIMARY KEY,
+    owner_uid TEXT,
     frequency TEXT NOT NULL DEFAULT 'necessary_only',
     start_time TEXT NOT NULL DEFAULT '20:00',
     end_time TEXT NOT NULL DEFAULT '06:00',
@@ -232,10 +237,7 @@ for (const column of speciesColumns) {
 }
 
 // Push通知(FCM)用のデバイストークン(docs/push-notification-design.md 3章)。
-// 「アプリ全体で1件」ではなくFirebaseのuidに紐づけて保存する。v1〜v2初期は
-// 単一ユーザー運用のため実質1種類のuidしか入らないが、最初からuidで持たせて
-// おくことで、将来複数ユーザー対応(v2-firebase-security-design.md パターンB)
-// になった際に「このユーザーの端末にだけ送る」という絞り込みがそのまま使える。
+// Firebaseのuidに紐づけて保存し、植物所有者と同じuidの端末だけにPushを送る。
 // fcm_tokenにUNIQUE制約を付け、uid : token = 1 : N(将来1ユーザーが複数端末を
 // 持つケースに対応)を許容しつつ、同じ端末の二重登録では行が増えないようにする。
 db.exec(`
@@ -248,5 +250,66 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
   );
 `);
+
+function ensureColumn(table, name, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!columns.some((column) => column.name === name)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition};`);
+  }
+}
+
+ensureColumn('devices', 'owner_uid', 'owner_uid TEXT');
+ensureColumn('devices', 'api_key_hash', 'api_key_hash TEXT');
+ensureColumn('plants', 'owner_uid', 'owner_uid TEXT');
+ensureColumn('notification_settings', 'owner_uid', 'owner_uid TEXT');
+
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS notification_settings_owner_uid
+  ON notification_settings(owner_uid)
+  WHERE owner_uid IS NOT NULL;
+`);
+
+const unownedDataCount = db.prepare(`
+  SELECT
+    (SELECT COUNT(*) FROM plants WHERE owner_uid IS NULL) +
+    (SELECT COUNT(*) FROM devices WHERE owner_uid IS NULL) AS count
+`).get().count;
+const legacyOwnerUid = process.env.LEGACY_DATA_OWNER_UID?.trim();
+
+if (unownedDataCount > 0) {
+  if (!legacyOwnerUid) {
+    throw new Error(
+      'Existing plant/device data needs LEGACY_DATA_OWNER_UID in the project .env before the server can start.',
+    );
+  }
+
+  db.exec('BEGIN IMMEDIATE;');
+  try {
+    db.prepare('UPDATE plants SET owner_uid = ? WHERE owner_uid IS NULL').run(legacyOwnerUid);
+    db.prepare('UPDATE devices SET owner_uid = ? WHERE owner_uid IS NULL').run(legacyOwnerUid);
+    db.prepare('UPDATE notification_settings SET owner_uid = ? WHERE owner_uid IS NULL').run(
+      legacyOwnerUid,
+    );
+
+    const legacyDeviceId = Number(process.env.LEGACY_DEVICE_ID ?? 1);
+    const legacyDeviceApiKey = process.env.DEVICE_API_KEY;
+    if (
+      Number.isSafeInteger(legacyDeviceId) &&
+      legacyDeviceId > 0 &&
+      legacyDeviceApiKey
+    ) {
+      const apiKeyHash = createHash('sha256').update(legacyDeviceApiKey).digest('hex');
+      db.prepare(`
+        UPDATE devices
+        SET api_key_hash = ?
+        WHERE id = ? AND owner_uid = ? AND api_key_hash IS NULL
+      `).run(apiKeyHash, legacyDeviceId, legacyOwnerUid);
+    }
+    db.exec('COMMIT;');
+  } catch (error) {
+    db.exec('ROLLBACK;');
+    throw error;
+  }
+}
 
 export default db;

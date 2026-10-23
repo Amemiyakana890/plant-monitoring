@@ -142,13 +142,13 @@ C -->|API| E
 - ✅ 植物の新規登録画面(F-08)。`AppRoot`が植物未登録を検知すると自動でこの画面へ振り分け、送信すると`POST /plants`まで接続済み(`app/lib/screens/onboarding/plant_registration_page.dart`)。セットアップ時に`curl`コマンドで手動登録する必要はない
 - ✅ Push通知(Firebase Cloud Messaging(FCM)、Android先行対応。ログイン後にトークン登録、フォアグラウンドはバナーを出さず通知一覧のみ即時更新、バックグラウンド/終了状態はOS標準のシステム通知。詳細は[push-notification-design.md](docs/push-notification-design.md)を参照)
 - ⬜ Bluetooth Low Energy(BLE)は未着手(現状はデバイス名・MACアドレスの手入力でペアリング)
-- ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証。本人確認のゲートのみで、ユーザーごとのデータ分離は行わないパターンAでの実装)
-- ✅ v2:セキュリティ強化(サーバーAPIにFirebaseのIDトークン検証ミドルウェアを追加(`server/middleware/require_auth.js`)。`POST /sensor`のみESP32向けに別方式(`DEVICE_API_KEY`によるデバイス認証、`server/middleware/require_device_auth.js`)で保護。設計は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
-- ✅ v2でのFirebase移行(ログイン機能・サーバーAPIの保護・Push通知(FCM)まで完了。Node.jsサーバーは置き換えず、`firebase-admin`経由で拡張する方針で確定・実装した)
+- ✅ v2:ログイン機能(Firebase Authenticationによるメール/パスワード認証、ユーザーごとのデータ分離)
+- ✅ v2:セキュリティ強化(サーバーAPIにFirebaseのIDトークン検証ミドルウェアを追加。`POST /sensor`はデバイスごとの認証キーで保護。設計は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
+- ✅ v2でのFirebase移行(ログイン機能・ユーザーごとのデータ分離・サーバーAPIの保護・Push通知(FCM)まで完了。Node.jsサーバーは置き換えず、`firebase-admin`経由で拡張)
 - ✅ 植物種カタログの拡充(モンステラ・パキラ・サンセベリア・ポトスの4種、`GET /species`。育てたい植物を1種選んで登録・あとから植物情報ページで切り替えも可能。今後も種類を拡大予定)
 - ⬜ v2で複数植物(複数株)対応にする(例:モンステラとパキラを同時に2株登録して、それぞれ個別に見守る。サーバー側のAPI/DB(`plants`テーブル)は複数行に対応済みだが、アプリは引き続き`GET /plants`の先頭1件のみを表示・管理する実装のままで、2株目を追加する画面もまだ無い。上記の「植物種カタログ」とは別の課題で、こちらは未着手)
 - ⬜ v2で複数デバイス対応にする(1台のデバイスにつき植物1株、という前提自体が上記の複数植物対応と合わせて解消が必要)
-- ⬜ ユーザーごとにBLEでデバイスをペアリング・紐付けし、他ユーザーは紐付けていないデバイス/植物を扱えないようにする想定。新規登録ボタン(`LoginPage`)はこの方針に伴い意図的に開放したまま。詳細・残課題は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)
+- ✅ ユーザーごとの植物・デバイス・履歴・通知・設定の分離。デバイス接続は現在、名前とMACアドレスの手入力で行う)
 
 ---
 
@@ -230,12 +230,19 @@ copy .env.example .env
 
 ### サーバー用の追加設定(v2・認証機能を使う場合)
 
-サーバーAPIの保護(認証、詳細は[v2-firebase-security-design.md](docs/v2-firebase-security-design.md)を参照)を有効にするには、`.env` に以下2つの値の設定が必須です。未設定のままだと`node app.js`自体は起動できてしまいますが、アプリからのAPIリクエストが全て401(認証エラー)になり、原因が分かりにくいので注意してください。
+サーバーAPIの認証には`.env`の`GOOGLE_APPLICATION_CREDENTIALS`が必要です。既存DBをユーザー分離へ移行する場合は、追加で旧データ所有者のUIDを`LEGACY_DATA_OWNER_UID`へ設定します。旧ESP32を継続利用する場合は`DEVICE_API_KEY`も移行時に必要です。
 
 | 変数 | 内容 | 取得方法 |
 |---|---|---|
 | `GOOGLE_APPLICATION_CREDENTIALS` | Firebase Admin SDKのサービスアカウント鍵(JSON)ファイルへの絶対パス | [Firebase Console](https://console.firebase.google.com/) → 対象プロジェクト → プロジェクトの設定 → サービスアカウント タブ → 「新しい秘密鍵の生成」でJSONファイルをダウンロードし、そのファイルへの絶対パスを指定する。このJSONファイル自体は機密情報のため、リポジトリ管理外(`.gitignore`対象)の場所に置くこと |
-| `DEVICE_API_KEY` | ESP32から`POST /sensor`を送信する際のデバイス認証キー(任意の長い文字列) | 自分で長めのランダム文字列を生成して設定する(例: `openssl rand -hex 32`)。`esp32/plant_sensor_integrated/secrets.h`側の`DEVICE_API_KEY`にも同じ値を設定すること |
+| `DEVICE_API_KEY` | 既存ESP32デバイスの移行時に使う旧共有キー | 旧サーバーで使っていたキーを設定する。DB移行時にデバイス個別キーのハッシュへ変換される。新しいデバイスはアプリのペアリング後に発行されるキーを使う |
+| `LEGACY_DATA_OWNER_UID` | 旧DBデータを引き継ぐFirebase UID | 既存データの所有者を一度だけ指定する。旧データの移行後は削除できる |
+| `LEGACY_DEVICE_ID` | 旧ESP32デバイスのID | 省略時は`1`。旧ESP32の`DEVICE_ID`と一致させる |
+
+`plants`または`devices`を含む既存DBでは、旧データを引き継ぐFirebase UIDを`.env`へ設定してから
+サーバーを起動してください。旧ESP32の`DEVICE_ID`に対応する旧共有キーは移行時にハッシュ化されます。
+移行完了後は`LEGACY_DATA_OWNER_UID`と`DEVICE_API_KEY`を削除できます。新しいデバイスはアプリで登録すると
+個別の認証キーが一度だけ表示されるため、そのキーとデバイスIDをESP32の`secrets.h`およびスケッチへ設定してください。
 
 設定後、`node app.js`を起動した際にコンソールへ`Firebase IDトークンの検証に失敗しました: Unable to detect a Project Id...`のような警告が出る場合は、`GOOGLE_APPLICATION_CREDENTIALS`のパスが誤っているか、指定したファイルが存在しない可能性があります。
 

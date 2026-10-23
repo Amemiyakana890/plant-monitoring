@@ -90,7 +90,7 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
   // 外側)に置くことで、設定配下のサブ画面(Navigator.pushで開く別ルート)
   // からも同じ状態を参照・変更できるようにする(AppBottomNavBar参照)。
   final MainTabController _tabController = MainTabController();
-  bool _loadedForCurrentSession = false;
+  String? _loadedForUserUid;
 
   // Push通知(FCM)の初期化・トークン登録・受信ハンドリングをまとめたサービス。
   // _tabControllerを参照するため、フィールド初期化子ではなくinitState()内で
@@ -105,6 +105,8 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
       plantStore: widget.store,
       tabController: _tabController,
     );
+    widget.authStore.beforeSignOut =
+        _pushNotificationService.unregisterCurrentToken;
     widget.themeController.addListener(_onThemeChanged);
     widget.authStore.addListener(_onAuthChanged);
     _onAuthChanged();
@@ -122,17 +124,21 @@ class _PlantMonitoringAppState extends State<PlantMonitoringApp> {
   void _onThemeChanged() => setState(() {});
 
   void _onAuthChanged() {
-    if (widget.authStore.isSignedIn && !_loadedForCurrentSession) {
-      _loadedForCurrentSession = true;
+    final user = widget.authStore.currentUser;
+    if (user != null && _loadedForUserUid != user.uid) {
+      _loadedForUserUid = user.uid;
+      widget.store.clearUserData();
       widget.store.loadInitial();
       widget.store.startPolling();
       // ログイン後にFCMトークンを登録する(docs/push-notification-design.md
       // 6-2章)。initialize()は内部で2回目以降の呼び出しを無視するため、
       // ログアウト→再ログインを繰り返しても購読が重複しない。
       _pushNotificationService.initialize();
-    } else if (!widget.authStore.isSignedIn) {
-      _loadedForCurrentSession = false;
+    } else if (user == null) {
+      _loadedForUserUid = null;
       widget.store.stopPolling();
+      widget.store.clearUserData();
+      _tabController.setIndex(0);
     }
   }
 

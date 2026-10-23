@@ -9,7 +9,9 @@ const RANGE_TO_MODIFIER = {
   '30d': '-30 days',
 };
 
-const selectPlantStmt = db.prepare(`SELECT id FROM plants WHERE id = ?`);
+const selectPlantStmt = db.prepare(
+  `SELECT id FROM plants WHERE id = ? AND owner_uid = ?`,
+);
 
 // range値ごとにprepareし直すコストを避けるため、あらかじめ3種類だけ用意しておく。
 const selectLogsStmtByRange = Object.fromEntries(
@@ -27,7 +29,7 @@ const selectLogsStmtByRange = Object.fromEntries(
 // GET /history/:plantId?range=24h|7d|30d (設計書5-5)
 export function getHistory(req, res) {
   const plantId = Number(req.params.plantId);
-  const plant = selectPlantStmt.get(plantId);
+  const plant = selectPlantStmt.get(plantId, req.user.uid);
   if (!plant) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
   }

@@ -83,6 +83,36 @@ class _DeviceConnectionPageState extends State<DeviceConnectionPage> {
       macAddress: macController.text.trim(),
     );
 
+    final deviceApiKey = store.takeNewDeviceApiKey();
+    if (deviceApiKey != null && mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('デバイス認証キー'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'このキーは今回だけ表示されます。第三者に共有せず、'
+                  'ESP32のsecrets.hに設定してください。',
+                ),
+                const SizedBox(height: AppSpacing.medium),
+                SelectableText(deviceApiKey),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (!mounted) return;
     // pairAndLinkDevice成功後は、紐付いたdevice_id(=ESP32のDEVICE_ID定数と
     // 一致させるべき値)を確認できるよう、成功メッセージに含めておく。

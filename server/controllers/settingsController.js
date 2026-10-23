@@ -1,9 +1,7 @@
 import db from '../database/db.js';
 import { sendError } from '../utils/errors.js';
 import { parseHourMinute } from '../utils/time.js';
-
-// notification_settingsはアプリ全体で1レコードのみ運用する(設計書6章ER図の注記)。
-const selectSettingsStmt = db.prepare(`SELECT * FROM notification_settings WHERE id = 1`);
+import { getOrCreateNotificationSettings } from '../utils/notificationSettingsStore.js';
 
 const updateSettingsStmt = db.prepare(`
   UPDATE notification_settings
@@ -15,7 +13,7 @@ const updateSettingsStmt = db.prepare(`
     temperature_alert_enabled = ?,
     humidity_alert_enabled = ?,
     illuminance_alert_enabled = ?
-  WHERE id = 1
+  WHERE owner_uid = ?
 `);
 
 function toBooleanFlag(value) {
@@ -39,7 +37,7 @@ function toResponse(row) {
 
 // GET /settings/notification (設計書5-1)
 export function getNotificationSettings(req, res) {
-  const row = selectSettingsStmt.get();
+  const row = getOrCreateNotificationSettings(req.user.uid);
   res.json(toResponse(row));
 }
 
@@ -50,7 +48,8 @@ export function getNotificationSettings(req, res) {
 // このAPIでは更新対象に含めていない(将来「通知頻度」の選択肢が固まった
 // 時点で追加する)。
 export function updateNotificationSettings(req, res) {
-  const current = selectSettingsStmt.get();
+  const ownerUid = req.user.uid;
+  const current = getOrCreateNotificationSettings(ownerUid);
   const body = req.body ?? {};
 
   const startTime = body.start_time ?? current.start_time;
@@ -92,7 +91,8 @@ export function updateNotificationSettings(req, res) {
     temperatureAlertEnabled,
     humidityAlertEnabled,
     illuminanceAlertEnabled,
+    ownerUid,
   );
 
-  res.json(toResponse(selectSettingsStmt.get()));
+  res.json(toResponse(getOrCreateNotificationSettings(ownerUid)));
 }

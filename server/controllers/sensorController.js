@@ -9,6 +9,7 @@ import { getSpeciesThresholds } from '../utils/speciesCatalog.js';
 import { validateSensorPayload } from '../utils/validation.js';
 import { sendError } from '../utils/errors.js';
 import { sendPushNotification } from '../utils/pushNotifier.js';
+import { getOrCreateNotificationSettings } from '../utils/notificationSettingsStore.js';
 import {
   toSqliteTimestamp,
   shouldRunDailyEvaluation,
@@ -22,11 +23,7 @@ import {
 // 設計書5-4本文の「devices.plant_id を参照」という記述は、実際のテーブル定義
 // (6章)とは逆向きの記載だったための表記ゆれ。実装は6章のスキーマに合わせる。
 const selectPlantByDeviceIdStmt = db.prepare(
-  `SELECT * FROM plants WHERE device_id = ?`,
-);
-
-const selectNotificationSettingsStmt = db.prepare(
-  `SELECT * FROM notification_settings WHERE id = 1`,
+  `SELECT * FROM plants WHERE device_id = ? AND owner_uid = ?`,
 );
 
 const insertLogStmt = db.prepare(
@@ -103,11 +100,11 @@ const insertNotificationStmt = db.prepare(
 // 保存が成功したか)には一切影響させない(2026年8月決定・docs 5-1章)。
 // テストのしやすさ(非同期処理の完了を確定的に待てる)と、関心の分離
 // (センサー保存の成否とPush送信の成否は別)を優先した判断。
-async function createNotification(plantId, message, category) {
-  insertNotificationStmt.run(plantId, message, category);
+async function createNotification(plant, message, category) {
+  insertNotificationStmt.run(plant.id, message, category);
 
   try {
-    await sendPushNotification(message);
+    await sendPushNotification(message, plant.owner_uid);
   } catch (err) {
     console.error('Push通知の送信に失敗しました:', err);
     // ここでは何もthrowしない。/sensorのレスポンスは通常通り返す。
@@ -335,7 +332,7 @@ async function runSilentTimeUnlockCheck(plant, now, settings, silentNow) {
   if (plant.pending_notification) {
     const notification = buildWorstAxisNotification(plant, settings);
     if (notification) {
-      await createNotification(plant.id, notification.message, notification.category);
+      await createNotification(plant, notification.message, notification.category);
     }
     setPendingNotificationStmt.run(0, plant.id);
   }
@@ -377,7 +374,8 @@ export async function receiveSensorData(req, res) {
     return sendError(res, 400, 'VALIDATION_ERROR', validationError);
   }
 
-  const plant = selectPlantByDeviceIdStmt.get(Number(device_id));
+  const ownerUid = req.deviceOwnerUid;
+  const plant = selectPlantByDeviceIdStmt.get(Number(device_id), ownerUid);
   if (!plant) {
     // デバイス自体は登録済みだが、どの植物にも紐付けられていない
     // (POST /plants または PATCH /plants/:id でdevice_idを設定していない)場合もここに来る。
@@ -390,7 +388,7 @@ export async function receiveSensorData(req, res) {
   }
 
   const now = new Date();
-  const settings = selectNotificationSettingsStmt.get();
+  const settings = getOrCreateNotificationSettings(ownerUid);
   const silentNow = isWithinSilentTime(now, settings.start_time, settings.end_time);
 
   // サイレントタイムの解禁チェックは、今回の受信で値を更新する「前」の
@@ -490,7 +488,7 @@ export async function receiveSensorData(req, res) {
     if (silentNow) {
       setPendingNotificationStmt.run(1, plant.id);
     } else {
-      await createNotification(plant.id, worstCandidate.message, worstCandidate.category);
+      await createNotification(plant, worstCandidate.message, worstCandidate.category);
     }
   }
 

@@ -13,8 +13,8 @@
   一切変更しない。これらはすべて`server/controllers/sensorController.js`の通知生成箇所
   (2章参照)が実行されるタイミングで既に反映済みのため、その直後にPush送信を差し込めば、
   既存ロジックをそのまま踏襲できる。
-- v2の複数ユーザー対応(`v2-firebase-security-design.md`)を見据え、FCMトークンは
-  「アプリ全体で1件」ではなく**Firebase uidに紐づけて**保存する(3章参照)。
+- ユーザーごとのデータ分離に合わせ、FCMトークンは**Firebase uidに紐づけて**保存し、
+  植物の所有者と同じuidの端末だけに送る(3・5章参照)。
 
 ## 2. 通知生成箇所(実装済み)
 
@@ -44,9 +44,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 ```
 
-- `owner_uid`:Firebaseのuid。v1〜v2初期は単一ユーザー運用のため実質1種類の値しか入らないが、
-  最初からuidで持たせておくことで、将来複数ユーザー対応(パターンB)になった際に
-  「このユーザーの端末にだけ送る」という絞り込みがそのまま使える。
+- `owner_uid`:Firebaseのuid。通知対象の植物所有者と一致する端末だけにPushを送る。
 - `fcm_token`に`UNIQUE`制約:同じ端末が再登録(アプリ再インストール等でトークン自体は
   変わらないケースや、二重登録)しても行が増えないようにする。
 - 1ユーザー1行ではなく**uid : token = 1 : N**を許容する設計(将来1ユーザーが複数端末を
@@ -70,7 +68,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   上書きする(3章参照。「今ログインしている人の端末である」という前提に基づく)。
 - アプリはログイン成功時・`onTokenRefresh`発火時の両方でこのAPIを呼ぶ(`PushNotificationService`、6章参照)。
 
-### 4-2. トークン削除(ログアウト時、任意・API自体は実装済みだが未接続)
+### 4-2. トークン削除(ログアウト時)
 
 **`DELETE /devices/tokens`**(要ログイン)
 
@@ -78,10 +76,9 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 { "fcm_token": "xxxxx" }
 ```
 
-- サーバー側のAPI自体は実装済み(`deviceTokensController.js`の`deleteDeviceToken`)。
-- ログアウト操作(`settings_page.dart`の`_signOut`)と合わせて呼ぶと、ログアウトした端末に
-  古い通知が届き続けるのを防げる。**未対応**:アプリ側(`_signOut`)からはまだこのAPIを
-  呼んでいない。実装コストは低いが、v1は必須ではないため優先度低めの拡張として残っている。
+- サーバー側APIは`deviceTokensController.js`の`deleteDeviceToken`。ログアウト前にアプリから呼び出し、
+  ログアウトした端末へ通知が届く可能性を減らす。通信に失敗してもログアウトは続行し、
+  次回ログイン時のトークン登録で所有者を更新する。
 
 ## 5. FCM送信ロジック(サーバー側・実装済み)
 
@@ -132,11 +129,15 @@ export default app;
 import { getMessaging } from 'firebase-admin/messaging';
 import db from '../database/db.js';
 
-const selectAllTokensStmt = db.prepare(`SELECT fcm_token FROM device_tokens`);
-const deleteTokenStmt = db.prepare(`DELETE FROM device_tokens WHERE fcm_token = ?`);
+const selectTokensStmt = db.prepare(
+  `SELECT fcm_token FROM device_tokens WHERE owner_uid = ?`,
+);
+const deleteTokenStmt = db.prepare(
+  `DELETE FROM device_tokens WHERE fcm_token = ? AND owner_uid = ?`,
+);
 
-export async function sendPushNotification(message) {
-  const tokens = selectAllTokensStmt.all().map((row) => row.fcm_token);
+export async function sendPushNotification(message, ownerUid) {
+  const tokens = selectTokensStmt.all(ownerUid).map((row) => row.fcm_token);
   if (tokens.length === 0) return;
 
   const response = await getMessaging().sendEachForMulticast({
@@ -150,7 +151,7 @@ export async function sendPushNotification(message) {
       !res.success &&
       res.error?.code === 'messaging/registration-token-not-registered'
     ) {
-      deleteTokenStmt.run(tokens[i]);
+      deleteTokenStmt.run(tokens[i], ownerUid);
     }
   });
 }
@@ -226,7 +227,7 @@ Android 8以降は通知チャンネルの設定が必要(重要度など)。**�
 3. `sensorController.js`の通知生成箇所を`createNotification()`ヘルパー経由に統一(2章) ✅ 実装済み
 4. `pushNotifier.js`によるFCM送信(5章) ✅ 実装済み
 5. アプリ側の受信ハンドリング(6-3章)・通知チャンネル(6-4章) ✅ 実装済み
-6. ログアウト時のトークン削除(4-2章) ⬜ APIは実装済みだがアプリ側からは未接続
+6. ログアウト時のトークン削除(4-2章) ✅ 実装済み(解除失敗時もログアウトは継続)
 
 ## 9. 決定事項・今後の検討事項
 

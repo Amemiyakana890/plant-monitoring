@@ -1,16 +1,25 @@
+import { createHash, randomBytes } from 'node:crypto';
 import db from '../database/db.js';
 import { validateDevicePairPayload } from '../utils/validation.js';
 import { sendError } from '../utils/errors.js';
 
 const insertDeviceStmt = db.prepare(
-  `INSERT INTO devices (device_name, mac_address) VALUES (?, ?)`,
+  `INSERT INTO devices (owner_uid, api_key_hash, device_name, mac_address)
+   VALUES (?, ?, ?, ?)`,
 );
 
-const selectDeviceStmt = db.prepare(`SELECT * FROM devices WHERE id = ?`);
+const selectDeviceStmt = db.prepare(
+  `SELECT * FROM devices WHERE id = ? AND owner_uid = ?`,
+);
 const selectDeviceByMacStmt = db.prepare(
   `SELECT * FROM devices WHERE mac_address = ?`,
 );
-const selectAllDevicesStmt = db.prepare(`SELECT * FROM devices ORDER BY id`);
+const selectAllDevicesStmt = db.prepare(
+  `SELECT * FROM devices WHERE owner_uid = ? ORDER BY id`,
+);
+const setDeviceApiKeyStmt = db.prepare(
+  `UPDATE devices SET api_key_hash = ? WHERE id = ? AND owner_uid = ?`,
+);
 
 // 同じMACアドレスのデバイスが再接続してきた場合に使う「再アクティブ化」用。
 // 行を作り直す(削除→INSERT)とAUTOINCREMENTでidが進んでしまい、実機
@@ -18,19 +27,21 @@ const selectAllDevicesStmt = db.prepare(`SELECT * FROM devices ORDER BY id`);
 // 既存の行を使い回してidを不変に保つ(2026-08-07の変更。
 // device-test-log01.md参照)。
 const reactivateDeviceStmt = db.prepare(
-  `UPDATE devices SET device_name = ?, status = 'connected', paired_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+  `UPDATE devices
+   SET device_name = ?, status = 'connected', paired_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+   WHERE id = ? AND owner_uid = ?`,
 );
 
 // ペアリング解除(unpairDevice)用。デバイス行自体は削除せず、
 // 「この植物との紐付けを外す」+「未接続状態にする」だけを行う。
 const unlinkPlantsByDeviceIdStmt = db.prepare(
-  `UPDATE plants SET device_id = NULL WHERE device_id = ?`,
+  `UPDATE plants SET device_id = NULL WHERE device_id = ? AND owner_uid = ?`,
 );
 const updateDeviceStatusStmt = db.prepare(
-  `UPDATE devices SET status = ? WHERE id = ?`,
+  `UPDATE devices SET status = ? WHERE id = ? AND owner_uid = ?`,
 );
 
-function toDeviceResponse(row) {
+function toDeviceResponse(row, deviceApiKey) {
   return {
     id: row.id,
     device_name: row.device_name,
@@ -39,19 +50,20 @@ function toDeviceResponse(row) {
     battery_level: row.battery_level,
     status: row.status,
     paired_at: row.paired_at,
+    ...(deviceApiKey ? { device_api_key: deviceApiKey } : {}),
   };
 }
 
 // GET /devices (設計書5-1・5-3)
 export function listDevices(req, res) {
-  const rows = selectAllDevicesStmt.all();
+  const rows = selectAllDevicesStmt.all(req.user.uid);
   res.json(rows.map(toDeviceResponse));
 }
 
 // GET /devices/:id (設計書5-3)
 export function getDevice(req, res) {
   const id = Number(req.params.id);
-  const row = selectDeviceStmt.get(id);
+  const row = selectDeviceStmt.get(id, req.user.uid);
 
   if (!row) {
     return sendError(res, 404, 'DEVICE_NOT_FOUND', '指定されたデバイスが見つかりません');
@@ -80,17 +92,30 @@ export function pairDevice(req, res) {
     return sendError(res, 400, 'VALIDATION_ERROR', validationError);
   }
 
+  const ownerUid = req.user.uid;
   const existing = selectDeviceByMacStmt.get(mac_address);
   if (existing) {
-    reactivateDeviceStmt.run(device_name, existing.id);
-    const reactivated = selectDeviceStmt.get(existing.id);
-    return res.status(200).json(toDeviceResponse(reactivated));
+    if (existing.owner_uid !== ownerUid) {
+      return sendError(res, 409, 'DEVICE_ALREADY_PAIRED', 'このデバイスは登録できません');
+    }
+
+    reactivateDeviceStmt.run(device_name, existing.id, ownerUid);
+    let deviceApiKey;
+    if (!existing.api_key_hash) {
+      deviceApiKey = randomBytes(32).toString('hex');
+      const apiKeyHash = createHash('sha256').update(deviceApiKey).digest('hex');
+      setDeviceApiKeyStmt.run(apiKeyHash, existing.id, ownerUid);
+    }
+    const reactivated = selectDeviceStmt.get(existing.id, ownerUid);
+    return res.status(200).json(toDeviceResponse(reactivated, deviceApiKey));
   }
 
-  const result = insertDeviceStmt.run(device_name, mac_address);
-  const created = selectDeviceStmt.get(result.lastInsertRowid);
+  const deviceApiKey = randomBytes(32).toString('hex');
+  const apiKeyHash = createHash('sha256').update(deviceApiKey).digest('hex');
+  const result = insertDeviceStmt.run(ownerUid, apiKeyHash, device_name, mac_address);
+  const created = selectDeviceStmt.get(result.lastInsertRowid, ownerUid);
 
-  res.status(201).json(toDeviceResponse(created));
+  res.status(201).json(toDeviceResponse(created, deviceApiKey));
 }
 
 // DELETE /devices/:id (設計書5-1「デバイスのペアリング解除」)
@@ -104,14 +129,15 @@ export function pairDevice(req, res) {
 // 再アクティブ化される(pairDevice参照)。
 export function unpairDevice(req, res) {
   const id = Number(req.params.id);
-  const existing = selectDeviceStmt.get(id);
+  const ownerUid = req.user.uid;
+  const existing = selectDeviceStmt.get(id, ownerUid);
 
   if (!existing) {
     return sendError(res, 404, 'DEVICE_NOT_FOUND', '指定されたデバイスが見つかりません');
   }
 
-  unlinkPlantsByDeviceIdStmt.run(id);
-  updateDeviceStatusStmt.run('disconnected', id);
+  unlinkPlantsByDeviceIdStmt.run(id, ownerUid);
+  updateDeviceStatusStmt.run('disconnected', id, ownerUid);
 
   res.status(204).end();
 }

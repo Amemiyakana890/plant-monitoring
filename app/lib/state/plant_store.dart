@@ -23,6 +23,7 @@ class PlantStore extends ChangeNotifier {
 
   Timer? _pollingTimer;
   bool _isPolling = false;
+  int _sessionGeneration = 0;
 
   Plant? plant;
   List<EnvironmentLog> history = [];
@@ -60,9 +61,49 @@ class PlantStore extends ChangeNotifier {
   String? wateringErrorMessage;
   String? speciesCatalogErrorMessage;
   String? registrationErrorMessage;
+  String? _newDeviceApiKey;
 
   int get unreadNotificationCount =>
       notifications.where((n) => !n.isRead).length;
+
+  String? takeNewDeviceApiKey() {
+    final key = _newDeviceApiKey;
+    _newDeviceApiKey = null;
+    return key;
+  }
+
+  void clearUserData() {
+    _sessionGeneration++;
+    plant = null;
+    history = [];
+    notifications = [];
+    devices = [];
+    notificationSettings = null;
+    speciesCatalog = [];
+    needsRegistration = false;
+    errorMessage = null;
+    historyErrorMessage = null;
+    notificationsErrorMessage = null;
+    devicesErrorMessage = null;
+    pairErrorMessage = null;
+    notificationSettingsErrorMessage = null;
+    wateringErrorMessage = null;
+    speciesCatalogErrorMessage = null;
+    registrationErrorMessage = null;
+    _newDeviceApiKey = null;
+    isLoadingPlant = false;
+    isLoadingHistory = false;
+    isLoadingNotifications = false;
+    isLoadingDevices = false;
+    isPairing = false;
+    isLoadingNotificationSettings = false;
+    isSavingNotificationSettings = false;
+    isRecordingWatering = false;
+    isLoadingSpeciesCatalog = false;
+    isSelectingSpecies = false;
+    isRegisteringPlant = false;
+    notifyListeners();
+  }
 
   /// アプリ起動時に呼び出す想定の初期読み込み。
   Future<void> loadInitial() async {
@@ -96,12 +137,16 @@ class PlantStore extends ChangeNotifier {
   }
 
   Future<void> _pollSilently() async {
+    final generation = _sessionGeneration;
     try {
-      plant = await _repository.fetchPlant();
+      final fetchedPlant = await _repository.fetchPlant();
+      if (generation != _sessionGeneration) return;
+      plant = fetchedPlant;
       // バックグラウンド更新が成功したら、以前のエラー表示も消しておく。
       errorMessage = null;
       notifyListeners();
     } on PlantNotRegisteredException {
+      if (generation != _sessionGeneration) return;
       // 起動中に植物が削除された等、ポーリング中に0件へ変わった場合。
       // これは一時的な通信不調ではなく実際の状態変化なので、他の通信エラーと
       // 異なりサイレントに無視せず、登録画面へ戻す(AppRoot参照)。
@@ -114,8 +159,12 @@ class PlantStore extends ChangeNotifier {
       // エラーバナーで上書きしない(サイレントに無視する)。
     }
 
+    if (generation != _sessionGeneration) return;
+
     try {
-      notifications = await _repository.fetchNotifications();
+      final fetchedNotifications = await _repository.fetchNotifications();
+      if (generation != _sessionGeneration) return;
+      notifications = fetchedNotifications;
       notifyListeners();
     } catch (_) {
       // 同上の理由でサイレントに無視する。
@@ -129,23 +178,30 @@ class PlantStore extends ChangeNotifier {
   }
 
   Future<void> loadPlant() async {
+    final generation = _sessionGeneration;
     isLoadingPlant = true;
     errorMessage = null;
     needsRegistration = false;
     notifyListeners();
     try {
-      plant = await _repository.fetchPlant();
+      final fetchedPlant = await _repository.fetchPlant();
+      if (generation != _sessionGeneration) return;
+      plant = fetchedPlant;
     } on PlantNotRegisteredException {
+      if (generation != _sessionGeneration) return;
       // 通信自体は成功しており、単に「まだ植物が0件」というだけなので、
       // errorMessageには入れずneedsRegistrationで表現する
       // (AppRootがこのフラグを見て登録画面に振り分ける)。
       plant = null;
       needsRegistration = true;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       errorMessage = '植物の情報を取得できませんでした';
     } finally {
-      isLoadingPlant = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isLoadingPlant = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -158,19 +214,28 @@ class PlantStore extends ChangeNotifier {
     required String name,
     required String speciesKey,
   }) async {
+    final generation = _sessionGeneration;
     isRegisteringPlant = true;
     registrationErrorMessage = null;
     notifyListeners();
     try {
-      plant = await _repository.createPlant(name: name, speciesKey: speciesKey);
+      final createdPlant = await _repository.createPlant(
+        name: name,
+        speciesKey: speciesKey,
+      );
+      if (generation != _sessionGeneration) return false;
+      plant = createdPlant;
       needsRegistration = false;
       return true;
     } catch (_) {
+      if (generation != _sessionGeneration) return false;
       registrationErrorMessage = '植物を登録できませんでした';
       return false;
     } finally {
-      isRegisteringPlant = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isRegisteringPlant = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -185,16 +250,20 @@ class PlantStore extends ChangeNotifier {
     String? species,
     String? speciesKey,
   }) async {
+    final generation = _sessionGeneration;
     errorMessage = null;
     try {
-      plant = await _repository.updatePlant(
+      final updatedPlant = await _repository.updatePlant(
         name: name,
         species: species,
         speciesKey: speciesKey,
       );
+      if (generation != _sessionGeneration) return false;
+      plant = updatedPlant;
       notifyListeners();
       return true;
     } catch (_) {
+      if (generation != _sessionGeneration) return false;
       errorMessage = '植物の情報を更新できませんでした';
       notifyListeners();
       return false;
@@ -202,34 +271,47 @@ class PlantStore extends ChangeNotifier {
   }
 
   Future<void> loadHistory({String range = '7d'}) async {
+    final generation = _sessionGeneration;
     isLoadingHistory = true;
     historyErrorMessage = null;
     notifyListeners();
     try {
-      history = await _repository.fetchHistory(range: range);
+      final fetchedHistory = await _repository.fetchHistory(range: range);
+      if (generation != _sessionGeneration) return;
+      history = fetchedHistory;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       historyErrorMessage = '履歴を取得できませんでした';
     } finally {
-      isLoadingHistory = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isLoadingHistory = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<void> loadNotifications() async {
+    final generation = _sessionGeneration;
     isLoadingNotifications = true;
     notificationsErrorMessage = null;
     notifyListeners();
     try {
-      notifications = await _repository.fetchNotifications();
+      final fetchedNotifications = await _repository.fetchNotifications();
+      if (generation != _sessionGeneration) return;
+      notifications = fetchedNotifications;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       notificationsErrorMessage = '通知を取得できませんでした';
     } finally {
-      isLoadingNotifications = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isLoadingNotifications = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<void> markNotificationRead(int id) async {
+    final generation = _sessionGeneration;
     // 楽観的に既読へ更新し、失敗したら元の状態へ戻す。
     // (通知タップの反応を待たせたくないための設計判断)
     final index = notifications.indexWhere((n) => n.id == id);
@@ -243,28 +325,38 @@ class PlantStore extends ChangeNotifier {
 
     try {
       final updated = await _repository.markNotificationRead(id);
+      if (generation != _sessionGeneration) return;
       notifications[index] = updated;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       notifications[index] = previous;
       notificationsErrorMessage = '通知の既読処理に失敗しました';
     } finally {
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        notifyListeners();
+      }
     }
   }
 
   // ---- デバイス接続(設計書5-3) ----
 
   Future<void> loadDevices() async {
+    final generation = _sessionGeneration;
     isLoadingDevices = true;
     devicesErrorMessage = null;
     notifyListeners();
     try {
-      devices = await _repository.fetchDevices();
+      final fetchedDevices = await _repository.fetchDevices();
+      if (generation != _sessionGeneration) return;
+      devices = fetchedDevices;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       devicesErrorMessage = 'デバイス一覧を取得できませんでした';
     } finally {
-      isLoadingDevices = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isLoadingDevices = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -282,6 +374,7 @@ class PlantStore extends ChangeNotifier {
     required String deviceName,
     required String macAddress,
   }) async {
+    final generation = _sessionGeneration;
     isPairing = true;
     pairErrorMessage = null;
     notifyListeners();
@@ -290,17 +383,26 @@ class PlantStore extends ChangeNotifier {
         deviceName: deviceName,
         macAddress: macAddress,
       );
-      plant = await _repository.updatePlant(deviceId: device.id);
-      devices = await _repository.fetchDevices();
+      if (generation != _sessionGeneration) return false;
+      _newDeviceApiKey = device.deviceApiKey;
+      final updatedPlant = await _repository.updatePlant(deviceId: device.id);
+      if (generation != _sessionGeneration) return false;
+      plant = updatedPlant;
+      final fetchedDevices = await _repository.fetchDevices();
+      if (generation != _sessionGeneration) return false;
+      devices = fetchedDevices;
       return true;
     } catch (e) {
+      if (generation != _sessionGeneration) return false;
       // 原因切り分けのため、サーバーからの実際のエラー内容(ステータス・
       // レスポンスボディ)を含めて表示する(HttpPlantRepository._ensureOk参照)。
       pairErrorMessage = 'デバイスのペアリングに失敗しました: $e';
       return false;
     } finally {
-      isPairing = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isPairing = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -308,12 +410,15 @@ class PlantStore extends ChangeNotifier {
   /// 紐付いていた植物のdevice_idも自動的にnullへ戻るため、解除後は
   /// plant/devicesの両方を再取得して画面に反映する。
   Future<bool> unpairDevice(int deviceId) async {
+    final generation = _sessionGeneration;
     pairErrorMessage = null;
     try {
       await _repository.unpairDevice(deviceId);
+      if (generation != _sessionGeneration) return false;
       await Future.wait([loadPlant(), loadDevices()]);
       return true;
     } catch (e) {
+      if (generation != _sessionGeneration) return false;
       pairErrorMessage = 'ペアリング解除に失敗しました: $e';
       notifyListeners();
       return false;
@@ -323,16 +428,22 @@ class PlantStore extends ChangeNotifier {
   // ---- 通知設定(設計書5-1)。サイレントタイム・カテゴリ別アラートのON/OFF ----
 
   Future<void> loadNotificationSettings() async {
+    final generation = _sessionGeneration;
     isLoadingNotificationSettings = true;
     notificationSettingsErrorMessage = null;
     notifyListeners();
     try {
-      notificationSettings = await _repository.fetchNotificationSettings();
+      final fetchedSettings = await _repository.fetchNotificationSettings();
+      if (generation != _sessionGeneration) return;
+      notificationSettings = fetchedSettings;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       notificationSettingsErrorMessage = '通知設定を取得できませんでした';
     } finally {
-      isLoadingNotificationSettings = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isLoadingNotificationSettings = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -341,6 +452,7 @@ class PlantStore extends ChangeNotifier {
   /// (updatePlant()と同じ考え方。UIの反応を待たせたくないため)。
   /// 成功時はtrue、失敗時はfalseを返す。
   Future<bool> updateNotificationSettings(NotificationSettings updated) async {
+    final generation = _sessionGeneration;
     final previous = notificationSettings;
     notificationSettings = updated;
     isSavingNotificationSettings = true;
@@ -348,17 +460,22 @@ class PlantStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      notificationSettings = await _repository.updateNotificationSettings(
+      final savedSettings = await _repository.updateNotificationSettings(
         updated,
       );
+      if (generation != _sessionGeneration) return false;
+      notificationSettings = savedSettings;
       return true;
     } catch (_) {
+      if (generation != _sessionGeneration) return false;
       notificationSettings = previous;
       notificationSettingsErrorMessage = '通知設定を保存できませんでした';
       return false;
     } finally {
-      isSavingNotificationSettings = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isSavingNotificationSettings = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -370,6 +487,7 @@ class PlantStore extends ChangeNotifier {
   /// (updateNotificationSettings()と同じ「楽観的更新→失敗時ロールバック」の考え方)。
   /// 成功時はtrue、失敗時はfalseを返す。
   Future<bool> recordWatering() async {
+    final generation = _sessionGeneration;
     final current = plant;
     if (current == null) return false;
 
@@ -382,31 +500,42 @@ class PlantStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      plant = await _repository.recordWatering(current.id);
+      final updatedPlant = await _repository.recordWatering(current.id);
+      if (generation != _sessionGeneration) return false;
+      plant = updatedPlant;
       return true;
     } catch (_) {
+      if (generation != _sessionGeneration) return false;
       plant = previous;
       wateringErrorMessage = '水やりの記録に失敗しました';
       return false;
     } finally {
-      isRecordingWatering = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isRecordingWatering = false;
+        notifyListeners();
+      }
     }
   }
 
   // ---- 植物種カタログ・切り替え(F-08・植物切り替え機能) ----
 
   Future<void> loadSpeciesCatalog() async {
+    final generation = _sessionGeneration;
     isLoadingSpeciesCatalog = true;
     speciesCatalogErrorMessage = null;
     notifyListeners();
     try {
-      speciesCatalog = await _repository.fetchSpeciesCatalog();
+      final catalog = await _repository.fetchSpeciesCatalog();
+      if (generation != _sessionGeneration) return;
+      speciesCatalog = catalog;
     } catch (_) {
+      if (generation != _sessionGeneration) return;
       speciesCatalogErrorMessage = '植物の選択肢を取得できませんでした';
     } finally {
-      isLoadingSpeciesCatalog = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isLoadingSpeciesCatalog = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -414,18 +543,26 @@ class PlantStore extends ChangeNotifier {
   /// 触れず、植物種(species_key)だけを切り替える。
   /// 成功時はtrue、失敗時はfalseを返す。
   Future<bool> selectSpecies(String speciesKey) async {
+    final generation = _sessionGeneration;
     isSelectingSpecies = true;
     errorMessage = null;
     notifyListeners();
     try {
-      plant = await _repository.updatePlant(speciesKey: speciesKey);
+      final updatedPlant = await _repository.updatePlant(
+        speciesKey: speciesKey,
+      );
+      if (generation != _sessionGeneration) return false;
+      plant = updatedPlant;
       return true;
     } catch (_) {
+      if (generation != _sessionGeneration) return false;
       errorMessage = '植物種を変更できませんでした';
       return false;
     } finally {
-      isSelectingSpecies = false;
-      notifyListeners();
+      if (generation == _sessionGeneration) {
+        isSelectingSpecies = false;
+        notifyListeners();
+      }
     }
   }
 }

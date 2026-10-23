@@ -8,21 +8,17 @@ import db from '../database/db.js';
 // getAuth()と同じパターン)。そのため、このファイル単体でFirebaseの
 // 初期化をやり直す必要はない。
 
-const selectAllTokensStmt = db.prepare(`SELECT fcm_token FROM device_tokens`);
+const selectAllTokensStmt = db.prepare(
+  `SELECT fcm_token FROM device_tokens WHERE owner_uid = ?`,
+);
 const deleteTokenStmt = db.prepare(
-  `DELETE FROM device_tokens WHERE fcm_token = ?`,
+  `DELETE FROM device_tokens WHERE fcm_token = ? AND owner_uid = ?`,
 );
 
-// device_tokensに登録されている全端末へPush通知を送る。
-//
-// v1〜v2初期は単一ユーザー運用のため、実質1〜数台程度にしか送られない
-// (uidごとの絞り込みは行っていない。複数ユーザー対応(パターンB)が
-// 具体化した際は、対象ユーザーのuidで絞り込むよう拡張する想定)。
-//
 // 呼び出し元(sensorController.jsのcreateNotification())が例外を
 // try/catchで隔離するため、ここでは特にcatchせず素直にthrowしてよい。
-export async function sendPushNotification(message) {
-  const tokens = selectAllTokensStmt.all().map((row) => row.fcm_token);
+export async function sendPushNotification(message, ownerUid) {
+  const tokens = selectAllTokensStmt.all(ownerUid).map((row) => row.fcm_token);
   if (tokens.length === 0) return;
 
   const response = await getMessaging().sendEachForMulticast({
@@ -37,7 +33,7 @@ export async function sendPushNotification(message) {
       !result.success &&
       result.error?.code === 'messaging/registration-token-not-registered'
     ) {
-      deleteTokenStmt.run(tokens[i]);
+      deleteTokenStmt.run(tokens[i], ownerUid);
     }
   });
 }

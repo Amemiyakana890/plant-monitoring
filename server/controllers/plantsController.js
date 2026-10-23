@@ -5,12 +5,17 @@ import { getSeasonalSoilThresholds, getSoilSeasonForMonth } from '../utils/plant
 import { getSpeciesThresholds, getSpeciesInfo, isValidSpeciesKey } from '../utils/speciesCatalog.js';
 
 const insertPlantStmt = db.prepare(
-  `INSERT INTO plants (name, species, image, device_id, species_key) VALUES (?, ?, ?, ?, ?)`,
+  `INSERT INTO plants (owner_uid, name, species, image, device_id, species_key)
+   VALUES (?, ?, ?, ?, ?, ?)`,
 );
 
-const selectPlantStmt = db.prepare(`SELECT * FROM plants WHERE id = ?`);
-const selectAllPlantsStmt = db.prepare(`SELECT * FROM plants ORDER BY id`);
-const selectDeviceStmt = db.prepare(`SELECT * FROM devices WHERE id = ?`);
+const selectPlantStmt = db.prepare(`SELECT * FROM plants WHERE id = ? AND owner_uid = ?`);
+const selectAllPlantsStmt = db.prepare(
+  `SELECT * FROM plants WHERE owner_uid = ? ORDER BY id`,
+);
+const selectDeviceStmt = db.prepare(
+  `SELECT * FROM devices WHERE id = ? AND owner_uid = ?`,
+);
 
 const updatePlantStmt = db.prepare(
   `UPDATE plants
@@ -18,10 +23,10 @@ const updatePlantStmt = db.prepare(
        species = COALESCE(?, species),
        species_key = COALESCE(?, species_key),
        device_id = COALESCE(?, device_id)
-   WHERE id = ?`,
+   WHERE id = ? AND owner_uid = ?`,
 );
 
-const deletePlantStmt = db.prepare(`DELETE FROM plants WHERE id = ?`);
+const deletePlantStmt = db.prepare(`DELETE FROM plants WHERE id = ? AND owner_uid = ?`);
 
 // created_at は datetime('now') で秒単位までしか記録されないため、
 // 短時間に連続でデータが届くと created_at だけでは順序が確定しない。
@@ -114,7 +119,7 @@ function toPlantResponse(plantRow) {
 // ないため、記録した上で最新のplant状態(last_watered_at込み)を返す。
 export function recordWatering(req, res) {
   const id = Number(req.params.id);
-  const existing = selectPlantStmt.get(id);
+  const existing = selectPlantStmt.get(id, req.user.uid);
 
   if (!existing) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
@@ -151,7 +156,7 @@ export function createPlant(req, res) {
   }
 
   if (device_id !== undefined && device_id !== null) {
-    const device = selectDeviceStmt.get(Number(device_id));
+    const device = selectDeviceStmt.get(Number(device_id), req.user.uid);
     if (!device) {
       return sendError(res, 404, 'DEVICE_NOT_FOUND', '指定されたデバイスが見つかりません');
     }
@@ -166,27 +171,28 @@ export function createPlant(req, res) {
       : (species ?? null);
 
   const result = insertPlantStmt.run(
+    req.user.uid,
     name,
     resolvedSpecies,
     image ?? null,
     device_id ?? null,
     species_key ?? null,
   );
-  const created = selectPlantStmt.get(result.lastInsertRowid);
+  const created = selectPlantStmt.get(result.lastInsertRowid, req.user.uid);
 
   res.status(201).json(toPlantResponse(created));
 }
 
 // GET /plants
 export function listPlants(req, res) {
-  const rows = selectAllPlantsStmt.all();
+  const rows = selectAllPlantsStmt.all(req.user.uid);
   res.json(rows.map(toPlantResponse));
 }
 
 // GET /plants/:id
 export function getPlant(req, res) {
   const id = Number(req.params.id);
-  const row = selectPlantStmt.get(id);
+  const row = selectPlantStmt.get(id, req.user.uid);
 
   if (!row) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
@@ -206,7 +212,7 @@ export function getPlant(req, res) {
 // (「植物名は自由記入、植物種はシステム的に選択する」という運用のため)。
 export function updatePlant(req, res) {
   const id = Number(req.params.id);
-  const existing = selectPlantStmt.get(id);
+  const existing = selectPlantStmt.get(id, req.user.uid);
 
   if (!existing) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
@@ -233,7 +239,7 @@ export function updatePlant(req, res) {
     }
   }
   if (device_id !== undefined && device_id !== null) {
-    const device = selectDeviceStmt.get(Number(device_id));
+    const device = selectDeviceStmt.get(Number(device_id), req.user.uid);
     if (!device) {
       return sendError(res, 404, 'DEVICE_NOT_FOUND', '指定されたデバイスが見つかりません');
     }
@@ -252,8 +258,9 @@ export function updatePlant(req, res) {
     species_key ?? null,
     device_id ?? null,
     id,
+    req.user.uid,
   );
-  const updated = selectPlantStmt.get(id);
+  const updated = selectPlantStmt.get(id, req.user.uid);
   res.json(toPlantResponse(updated));
 }
 
@@ -262,12 +269,12 @@ export function updatePlant(req, res) {
 // (database/db.js参照)、紐づくログも一緒に削除される。
 export function deletePlant(req, res) {
   const id = Number(req.params.id);
-  const existing = selectPlantStmt.get(id);
+  const existing = selectPlantStmt.get(id, req.user.uid);
 
   if (!existing) {
     return sendError(res, 404, 'PLANT_NOT_FOUND', '指定された植物が見つかりません');
   }
 
-  deletePlantStmt.run(id);
+  deletePlantStmt.run(id, req.user.uid);
   res.status(204).end();
 }

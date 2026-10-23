@@ -88,4 +88,7 @@ abstract class PlantRepository {
     required String fcmToken,
     String platform = 'android',
   });
+
+  /// DELETE /devices/tokens 相当。ログアウト前に現在の端末トークンを解除する。
+  Future<void> unregisterDeviceToken({required String fcmToken});
 }

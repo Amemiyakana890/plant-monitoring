@@ -5,12 +5,8 @@ import 'package:flutter/foundation.dart';
 
 /// Firebase Auth(メール/パスワード)でのログイン状態を管理する。
 ///
-/// v2のログイン機能は「本人確認のゲート」としての導入(要件定義書9章で
-/// 検討したパターンA)であり、複数ユーザーでデータを分離する用途では
-/// **ない**。そのため[PlantStore]・サーバー側のAPI・DBスキーマには
-/// 一切手を入れていない(uidに紐づくデータ分離は行わない。将来的に
-/// 本当の意味での複数ユーザー対応(パターンB)をやる場合は、この前提から
-/// 見直しが必要になる点に注意)。
+/// Firebase UIDは、サーバーAPIとDBでユーザー所有データを分離するために使う。
+/// サインアウト時には通知用のFCMトークン解除を先に試みる。
 class AuthStore extends ChangeNotifier {
   AuthStore({FirebaseAuth? firebaseAuth})
     : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance {
@@ -33,6 +29,7 @@ class AuthStore extends ChangeNotifier {
 
   bool isSubmitting = false;
   String? errorMessage;
+  Future<void> Function()? beforeSignOut;
 
   bool get isSignedIn => currentUser != null;
 
@@ -55,6 +52,7 @@ class AuthStore extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    await beforeSignOut?.call();
     await _firebaseAuth.signOut();
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:plant_monitoring_app/models/device.dart';
 import 'package:plant_monitoring_app/models/environment_log.dart';
@@ -44,9 +46,11 @@ class FakePlantRepository implements PlantRepository {
   /// (throwOnFetchPlantとは意図的に別フラグにしている。PlantStore側で
   /// この2つを区別してハンドリングすることを検証したいため)。
   final bool throwNotRegisteredOnFetchPlant;
+  Completer<Plant>? delayedFetchPlant;
 
   @override
   Future<Plant> fetchPlant() async {
+    if (delayedFetchPlant != null) return delayedFetchPlant!.future;
     if (throwNotRegisteredOnFetchPlant) {
       throw const PlantNotRegisteredException();
     }
@@ -204,6 +208,9 @@ class FakePlantRepository implements PlantRepository {
     String platform = 'android',
   }) async {}
 
+  @override
+  Future<void> unregisterDeviceToken({required String fcmToken}) async {}
+
   // ---- 植物登録API(F-08・植物登録画面) ----
 
   bool throwOnCreatePlant = false;
@@ -257,6 +264,21 @@ void main() {
 
       expect(store.plant, isNull);
       expect(store.errorMessage, isNotNull);
+      expect(store.isLoadingPlant, false);
+    });
+
+    test('アカウント切り替え後に前アカウントの遅延応答を反映しない', () async {
+      final repository = FakePlantRepository();
+      final completer = Completer<Plant>();
+      repository.delayedFetchPlant = completer;
+      final store = PlantStore(repository);
+
+      final pendingLoad = store.loadPlant();
+      store.clearUserData();
+      completer.complete(_plant);
+      await pendingLoad;
+
+      expect(store.plant, isNull);
       expect(store.isLoadingPlant, false);
     });
   });

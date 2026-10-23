@@ -145,6 +145,9 @@ class _FakePlantRepository implements PlantRepository {
     required String fcmToken,
     String platform = 'android',
   }) async {}
+
+  @override
+  Future<void> unregisterDeviceToken({required String fcmToken}) async {}
 }
 
 /// widget_test.dartと同じく、pumpAndSettle()のデフォルトタイムアウト(10分)に

@@ -56,12 +56,8 @@ class PushNotificationService {
   /// ログイン成功後に一度だけ呼ぶ。権限リクエスト・通知チャンネル作成・
   /// FCMトークン登録・受信ハンドリングの購読をまとめて行う。
   ///
-  /// 2回目以降の呼び出しは何もしない([_initialized]で防止)。ログアウト→
-  /// 再ログインを繰り返しても、購読(`listen`)が重複登録されないようにするため。
+  /// 再ログイン時にもトークンを登録し直し、所有者を現在のアカウントに更新する。
   Future<void> initialize() async {
-    if (_initialized) return;
-    _initialized = true;
-
     // Web実行時は初期化自体をスキップする。要件定義書8章の対応OSは
     // iOS/Androidのみで、Web実行(`flutter run -d chrome`)は開発確認用のため。
     // また、firebase_messagingのWeb実装はgetToken()呼び出し時に
@@ -72,6 +68,12 @@ class PushNotificationService {
     // Web版のPush通知に本格対応する場合は、この早期returnを外した上で
     // 該当のservice workerファイルを追加すること。
     if (kIsWeb) return;
+
+    if (_initialized) {
+      await _registerCurrentToken();
+      return;
+    }
+    _initialized = true;
 
     await _createAndroidChannel();
 
@@ -136,6 +138,25 @@ class PushNotificationService {
       // 引き続き更新される)には影響させない。ログインし直した際などに
       // 再試行される想定。
       debugPrint('FCMトークンの登録に失敗しました: $error');
+    }
+  }
+
+  Future<void> unregisterCurrentToken() async {
+    if (kIsWeb) return;
+
+    try {
+      final token = await _messaging.getToken();
+      if (token != null) {
+        await _repository.unregisterDeviceToken(fcmToken: token);
+      }
+    } catch (error) {
+      debugPrint('ログアウト時のFCMトークン解除に失敗しました: $error');
+    }
+
+    try {
+      await _messaging.deleteToken();
+    } catch (error) {
+      debugPrint('端末のFCMトークン削除に失敗しました: $error');
     }
   }
 

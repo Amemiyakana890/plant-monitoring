@@ -29,8 +29,20 @@ class HttpPlantRepository implements PlantRepository {
   final FirebaseAuth _firebaseAuth;
 
   Future<int>? _plantIdFuture;
+  String? _cachedOwnerUid;
 
-  Future<int> _resolvePlantId() => _plantIdFuture ??= _fetchFirstPlantId();
+  void _resetCacheForCurrentUser() {
+    final currentUid = _firebaseAuth.currentUser?.uid;
+    if (_cachedOwnerUid != currentUid) {
+      _cachedOwnerUid = currentUid;
+      _plantIdFuture = null;
+    }
+  }
+
+  Future<int> _resolvePlantId() {
+    _resetCacheForCurrentUser();
+    return _plantIdFuture ??= _fetchFirstPlantId();
+  }
 
   Future<int> _fetchFirstPlantId() async {
     final list = await _fetchPlantList();
@@ -53,6 +65,7 @@ class HttpPlantRepository implements PlantRepository {
 
   @override
   Future<Plant> fetchPlant() async {
+    _resetCacheForCurrentUser();
     final list = await _fetchPlantList();
     final json = list.first;
     _plantIdFuture = Future.value(json['id'] as int);
@@ -64,6 +77,7 @@ class HttpPlantRepository implements PlantRepository {
     required String name,
     required String speciesKey,
   }) async {
+    _resetCacheForCurrentUser();
     final uri = Uri.parse('$baseUrl/plants');
     final res = await http.post(
       uri,
@@ -261,6 +275,17 @@ class HttpPlantRepository implements PlantRepository {
       body: jsonEncode({'fcm_token': fcmToken, 'platform': platform}),
     );
     _ensureOk(res, 'PUT /devices/tokens');
+  }
+
+  @override
+  Future<void> unregisterDeviceToken({required String fcmToken}) async {
+    final uri = Uri.parse('$baseUrl/devices/tokens');
+    final res = await http.delete(
+      uri,
+      headers: await _authHeaders(json: true),
+      body: jsonEncode({'fcm_token': fcmToken}),
+    );
+    _ensureOk(res, 'DELETE /devices/tokens');
   }
 
   void _ensureOk(http.Response res, String label) {

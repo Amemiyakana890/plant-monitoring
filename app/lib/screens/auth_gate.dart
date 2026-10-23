@@ -14,9 +14,8 @@ import 'auth/login_page.dart';
 /// - 未ログイン → [LoginPage]
 /// - ログイン済み → [AppRoot](=植物登録状態の判定へ進む)
 ///
-/// v2のログインは「本人確認のゲート」としての導入(パターンA)であり、
-/// ユーザーごとにデータを分離する仕組みではないため、[AppRoot]以下・
-/// [PlantStore]・サーバー側のAPIは一切変更していない。
+/// Firebase UIDが切り替わると[PlantMonitoringApp]がデータを消去してから再取得し、
+/// サーバー側でもUIDに基づいてアクセス可能なデータを制限する。
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 

@@ -336,4 +336,9 @@ class DummyPlantRepository implements PlantRepository {
   }) async {
     await _simulateNetwork();
   }
+
+  @override
+  Future<void> unregisterDeviceToken({required String fcmToken}) async {
+    await _simulateNetwork();
+  }
 }

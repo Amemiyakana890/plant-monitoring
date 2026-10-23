@@ -9,6 +9,7 @@ class Device {
   final int? batteryLevel;
   final String status; // 'connected' / 'disconnected'
   final String? pairedAt;
+  final String? deviceApiKey;
 
   const Device({
     required this.id,
@@ -18,6 +19,7 @@ class Device {
     this.batteryLevel,
     required this.status,
     this.pairedAt,
+    this.deviceApiKey,
   });
 
   bool get isConnected => status == 'connected';
@@ -33,6 +35,7 @@ class Device {
       batteryLevel: batteryLevel,
       status: status ?? this.status,
       pairedAt: pairedAt ?? this.pairedAt,
+      deviceApiKey: deviceApiKey,
     );
   }
 
@@ -45,6 +48,7 @@ class Device {
       batteryLevel: json['battery_level'] as int?,
       status: json['status'] as String? ?? 'disconnected',
       pairedAt: json['paired_at'] as String?,
+      deviceApiKey: json['device_api_key'] as String?,
     );
   }
 }
